@@ -1,0 +1,19 @@
+# Exclude heavy files generated during C++ compilation from the upload list.
+
+# Exclude compile cache folder
+/build/
+/out/
+
+# Exclude Visual Studio and IDE temporary file
+/.vs/
+/.idea/
+/.vscode/
+/*.user/
+/*.suo/
+
+# Exclude machine language executable files and libraries
+*.exe
+*.dll
+*.lib
+*.obj
+*.pdb
