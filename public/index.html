@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ko">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Main Home</title>
+    </head>
+    <body>
+        <h2>Main Home Dashboard</h2>
+        <p>Hello, <b id="username">!</b></p>
+        <p>current state: Authenticate</p>
+
+        <br />
+        <button onclick="logout()">Log Out</button>
+
+        <script>
+            // Function parsing specific key value in browser cookie.
+            function getCookie(name) {
+                const value = `; ${document.cookie}`;
+                const parts = value.split(`; ${name}=`);
+
+                if (parts.length == 2) return parts.pop().split(";").shift();
+                return null;
+            }
+
+            // if not log in, send to login page
+            const user = getCookie("auth_session");
+            if (!user) {
+                alert("please login!");
+                window.location.href = "/login.html";
+            } else {
+                document.getElementById("userName").textContent = user;
+            }
+
+            function logout() {
+                document.cookie =
+                    "auth_session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                window.location.href = "/login.html";
+            }
+        </script>
+    </body>
+</html>

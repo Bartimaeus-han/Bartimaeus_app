@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ko">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Sign Up</title>
+    </head>
+    <body>
+        <h2>Sign Up</h2>
+        <form id="signupForm">
+            ID: <input type="text" id="username" required /><br /><br />
+            PW: <input type="password" id="password" required /><br /><br />
+            <button type="submit">sign up</button>
+        </form>
+        <div id="msg" style="margin-top: 10px"></div>
+        <br />
+        <a href="/login.html">go to log in</a>
+
+        <script>
+            document
+                .getElementById("signupForm")
+                .addEventListener("submit", function (e) {
+                    e.preventDefault();
+
+                    const msg = document.getElementById("msg");
+                    msg.textContent = "";
+
+                    const params = new URLSearchParams();
+                    params.append(
+                        "username",
+                        document.getElementById("username").value,
+                    );
+                    params.append(
+                        "password",
+                        document.getElementById("password").value,
+                    );
+
+                    fetch("/signup", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/x-www-form-urlencoded",
+                        },
+                        body: params.toString(),
+                    })
+                        .then(async (res) => {
+                            if (res.ok) {
+                                msg.style.color = "green";
+                                msg.textContent =
+                                    "Login Success!, go to login page.";
+                            } else {
+                                msg.style.color = "red";
+                                msg.textContent = data.message;
+                            }
+                        })
+                        .catch(() => {
+                            msg.style.color = "red";
+                            msg.textContent = "Server Communication Error";
+                        });
+                });
+        </script>
+    </body>
+</html>

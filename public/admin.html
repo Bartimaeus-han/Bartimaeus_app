@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ko">
+    <meta charset="UTF-8" />
+    <title>Admin Dashboard</title>
+</html>
+<body>
+    <h2>Admin Dashboard - Full Member List</h2>
+    <a href="/index.html">Back to home</a>
+    <br /><br />
+
+    <table border="1" id="userTable">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>PW</th>
+            </tr>
+        </thead>
+        <tbody id="userTableBody">
+            <!-- Dynamic rendering with JavaScript -->
+        </tbody>
+    </table>
+    <div id="errorMsg" style="color: red; margin-top: 15px"></div>
+
+    <script>
+        fetch("/api/users")
+            .then(async (res) => {
+                const data = await res.json();
+                if (res.ok) {
+                    const tbody = document.getElementById("userTableBody");
+                    data.forEach((user) => {
+                        const row = `<tr><td>${user.username}</td><td>${user.password}</td></tr>`;
+                        tbody.innerHTML += row;
+                    });
+                } else {
+                    document.getElementById("errorMsg").textContent =
+                        data.message || "Access Denied";
+                }
+            })
+            .catch(() => {
+                document.getElementById("errorMsg").textContent =
+                    "Server communication error occured when loading data.";
+            });
+    </script>
+</body>

@@ -50,7 +50,7 @@ public:
             res.status = 200;
 
             // Vulnerable Login authentication - plain text cookie
-            res.set_header("Set-Cookie", "auth_session=" + username + ";Path=/; HttpOnly");
+            res.set_header("Set-Cookie", "auth_session=" + username + ";Path=/;");
             res.set_content(R"({"status":"success", "message":"Login successful"})", "application/json");
         } else {
             res.status = 401;
