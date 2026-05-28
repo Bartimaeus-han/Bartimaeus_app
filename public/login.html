@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Login</title>
+  </head>
+  <body>
+    <h2>Login</h2>
+    <form id="loginForm">
+      ID: <input type="text" id="username" required /><br /><br />
+      PW: <input type="password" id="password" required /><br /><br />
+      <button type="submit">Log in</button>
+    </form>
+    <div id="errorMsg" style="color: red; margin-top: 10px"></div>
+    <br />
+    <a href="/signup.html">Sign Up</a>
+
+    <script>
+      document
+        .getElementById("loginForm")
+        .addEventListener("submit", function (e) {
+          e.preventDefault();
+          const errorMsg = document.getElementById("errorMsg");
+          errorMsg.textContent = "";
+
+          const params = new URLSearchParams();
+          params.append("username", document.getElementById("username").value);
+          params.append("password", document.getElementById("password").value);
+
+          fetch("/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: params.toString(),
+          })
+            .then(async (res) => {
+              const data = await res.json();
+              if (res.ok) {
+                window.location.href = "/index.html"; // Move to main page upon successful login
+              } else {
+                errorMsg.textContent = data.message;
+              }
+            })
+            .catch(() => (errorMsg.textContent = "Server Communication Error"));
+        });
+    </script>
+  </body>
+</html>
