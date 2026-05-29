@@ -19,7 +19,7 @@ public:
 
         if (username.empty() || password.empty()) {
             res.status = 400;
-            res.set_content(R"({"status":"error", "message":"Username and password are required"})",
+            res.set_content(R"({"status":"error", "message":"Username or password are required"})",
                             "application/json");
             return;
         }

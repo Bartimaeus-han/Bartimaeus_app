@@ -1,4 +1,5 @@
 #pragma once // prevents header files from being included multiple times
+#include "sqlite3.h"
 #include <iostream>
 #include <mutex> // Mutual Exclusion
 #include <string>
@@ -16,7 +17,27 @@ private:
     std::unordered_map<std::string, User> user_db; // username : User{username, password}
     std::mutex db_mutex;                           // Simultaneous access control DB in multi-thread env
 
+    sqlite3 *db = nullptr;
+
 public:
+    // When Program started, opne DB file
+    AuthService() {
+        // create/connect local file database named server.db
+        int rc = sqlite3_open("server.db", &db);
+        if (rc != SQLITE_OK) {
+            std::cerr << "[DB Error] Cannot open database: " << sqlite3_errmsg(db) << std::endl;
+        } else {
+            std::cout << "[DB Success] Connected to server.db successfully!" << std::endl;
+        }
+    }
+
+    ~AuthService() {
+        if (db) {
+            sqlite3_close(db);
+            std::cout << "[DB Success] Database connection closed." << std::endl;
+        }
+    }
+
     // sign up logic
     bool signUp(const std::string &username, const std::string &password) {
         std::lock_guard<std::mutex> lock(db_mutex);
