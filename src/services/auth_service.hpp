@@ -1,4 +1,5 @@
-#pragma once // prevents header files from being included multiple times
+#pragma once              // prevents header files from being included multiple times
+#include "db_queries.hpp" // Include SQL query header
 #include "sqlite3.h"
 #include <iostream>
 #include <mutex> // Mutual Exclusion
@@ -28,6 +29,18 @@ public:
             std::cerr << "[DB Error] Cannot open database: " << sqlite3_errmsg(db) << std::endl;
         } else {
             std::cout << "[DB Success] Connected to server.db successfully!" << std::endl;
+        }
+
+        char *errMsg = nullptr;
+
+        // Create table using the separated constant
+        rc = sqlite3_exec(db, Queries::CREATE_USERS_TABLE, nullptr, nullptr, &errMsg);
+
+        if (rc != SQLITE_OK) {
+            std::cerr << "[DB Error] Table create failed: " << (errMsg ? errMsg : "unknown") << std::endl;
+            sqlite3_free(errMsg); // Free error message memory
+        } else {
+            std::cout << "[DB Success] 'users' table is ready (checked/created)." << std::endl;
         }
     }
 
