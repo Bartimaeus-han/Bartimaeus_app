@@ -6,8 +6,41 @@
     </head>
     <body>
         <h2>Main Home Dashboard</h2>
-        <p>Hello, <b id="username">!</b></p>
+        <p>
+            Hello,
+            <b
+                id="username"
+                style="
+                    font-family:
+                        Consolas, monospace; /* 가독성을 위한 고정폭 폰트 (Monospace font for readability) */
+                    background-color: #ffeef0; /* 옅은 붉은색 배경 (Light red background) */
+                    color: #d63384; /* 붉은 분홍색 텍스트 색상 (Red-pink text color) */
+                    padding: 3px 8px; /* 안쪽 여백 (Internal padding) */
+                    border-radius: 4px; /* 둥근 테두리 모서리 (Rounded border corners) */
+                    border: 1px solid #f8d7da; /* 테두리선 (Border outline) */
+                    font-size: 1.05rem; /* 글자 크기 (Font size) */
+                    word-break: break-all; /* 긴 쿼리가 넘칠 때 자동 개행 (Wrap text if query is too long) */
+                "
+                >!</b
+            >
+        </p>
         <p>current state: Authenticate</p>
+        <button
+            id="adminBtn"
+            style="
+                display: none; /* hide this button option */
+                background-color: #212529;
+                color: white;
+                padding: 8px 16px;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-weight: bold;
+            "
+            onclick="location.href = '/admin.html'"
+        >
+            Admin Page
+        </button>
 
         <br />
         <button onclick="logout()">Log Out</button>
@@ -28,7 +61,13 @@
                 alert("please login!");
                 window.location.href = "/login.html";
             } else {
-                document.getElementById("userName").textContent = user;
+                document.getElementById("username").textContent = user;
+
+                // If 'admin' is in cookie, show admin page.
+                if (user.includes("admin")) {
+                    document.getElementById("adminBtn").style.display =
+                        "inline-block";
+                }
             }
 
             function logout() {
