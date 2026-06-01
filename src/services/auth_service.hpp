@@ -21,7 +21,7 @@ private:
     sqlite3 *db = nullptr;
 
 public:
-    // When Program started, opne DB file
+    // When Program started, open DB file
     AuthService() {
         // create/connect local file database named server.db
         int rc = sqlite3_open("server.db", &db);
@@ -51,63 +51,92 @@ public:
         }
     }
 
-    // sign up logic
+    // Secure sign up logic
     bool signUp(const std::string &username, const std::string &password) {
         std::lock_guard<std::mutex> lock(db_mutex);
 
-        std::string check_query = Queries::VULN_CHECK_USER + username + "';";
-        sqlite3_stmt *stmt = nullptr;
+        sqlite3_stmt *check_stmt = nullptr;
 
-        int rc = sqlite3_prepare_v2(db, check_query.c_str(), -1, &stmt, nullptr);
-        // Duplicated ID Check.
-        if (rc == SQLITE_OK) {
-            if (sqlite3_step(stmt) == SQLITE_ROW) {
-                std::cout << "[SignUp Fail] Duplicate username: " << username << std::endl;
-                sqlite3_finalize(stmt);
-                return false;
-            }
-        }
-
-        // Assemble SQL for user data insertion
-        std::string insert_query = Queries::VULN_INSERT_USER + username + "', '" + password + "');";
-
-        char *errMsg = nullptr;
-        rc = sqlite3_exec(db, insert_query.c_str(), nullptr, nullptr, &errMsg);
+        // Prepare secure query for duplicate ID check
+        // rc(Return Code)
+        int rc = sqlite3_prepare_v2(db, Queries::SECURE_CHECK_USER, -1, &check_stmt, nullptr);
+        // SQLITE_OK : sqlite's successfult result
         if (rc != SQLITE_OK) {
-            std::cerr << "[SignUp Fail] SQL error: " << (errMsg ? errMsg : "unknown") << std::endl;
-            sqlite3_free(errMsg);
+            std::cerr << "[SignUp Fail] Prepare check failed: " << sqlite3_errmsg(db) << std::endl;
             return false;
         }
 
-        std::cout << "[SignUp Success] Registered user: " << username << " (VULNERABLE PATH)" << std::endl;
+        // Parameter binding
+        // SQLITE_TRANSIENT : tells SQLite to copy the string
+        sqlite3_bind_text(check_stmt, 1, username.c_str(), -1, SQLITE_TRANSIENT);
+
+        // Execute query and check for duplicate
+        // SQLITE_ROW : return data
+        if (sqlite3_step(check_stmt) == SQLITE_ROW) {
+            std::cout << "[SignUp Fail] Duplicate username: " << username << std::endl;
+            sqlite3_finalize(check_stmt); // Clean up resource
+            return false;
+        }
+        sqlite3_finalize(check_stmt); // Clean up resource
+
+        // User register phase
+        sqlite3_stmt *insert_stmt = nullptr;
+
+        // Prepare secure query for user registration
+        rc = sqlite3_prepare_v2(db, Queries::SECURE_INSERT_USER, -1, &insert_stmt, nullptr);
+        if (rc != SQLITE_OK) {
+            std::cerr << "[SignUp Fail] Prepare insert failed: " << sqlite3_errmsg(db) << std::endl;
+            return false;
+        }
+
+        // Parameter Binding
+        sqlite3_bind_text(insert_stmt, 1, username.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(insert_stmt, 2, password.c_str(), -1, SQLITE_TRANSIENT);
+
+        // Execute query and verify insert success
+        rc = sqlite3_step(insert_stmt);
+        sqlite3_finalize(insert_stmt); // Clean up resource
+
+        // SQLITE_DONE : sql statement step has finished executing
+        if (rc != SQLITE_DONE) {
+            std::cerr << "[SignUp Fail] Insert execution error: " << sqlite3_errmsg(db) << std::endl;
+            return false;
+        }
+
+        std::cout << "[SignUp Success] Registered user: " << username << " (SECURED PATH)" << std::endl;
         return true;
     }
 
-    // 2. Sign In logic
+    // 2. Secure sign In logic
     bool signIn(const std::string &username, const std::string &password) {
         std::lock_guard<std::mutex> lock(db_mutex);
 
-        // Assemble SQL for login for login validation
-        std::string query = Queries::VULN_SELECT_USER + username + "' AND password = '" + password + "';";
-        std::cout << "[Executing Query] " << query << std::endl;
-
         sqlite3_stmt *stmt = nullptr;
-        int rc = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, nullptr);
+
+        // Prepare secure query for login validation
+        int rc = sqlite3_prepare_v2(db, Queries::SECURE_SELECT_USER, -1, &stmt, nullptr);
+        if (rc != SQLITE_OK) {
+            std::cerr << "[Login Error] Prepare query failed: " << sqlite3_errmsg(db) << std::endl;
+            return false;
+        }
+
+        // Parameter Binding
+        sqlite3_bind_text(stmt, 1, username.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 2, password.c_str(), -1, SQLITE_TRANSIENT);
 
         bool authenticated = false;
-        // If a row exists, authentication is successful
-        if (rc == SQLITE_OK) {
-            if (sqlite3_step(stmt) == SQLITE_ROW) {
-                authenticated = true;
-                std::cout << "[Login Scuccess] Authenticated: " << username << std::endl;
-            } else {
-                std::cout << "[Login Fail] Invalid credentials for: " << username << std::endl;
-            }
+
+        // Execute query and verify result
+        rc = sqlite3_step(stmt);
+        if (rc == SQLITE_ROW) {
+            authenticated = true;
+            std::cout << "[Login Success] Authenticated: " << username << std::endl;
         } else {
-            std::cerr << "[Login Error] Prepare failed: " << sqlite3_errmsg(db) << std::endl;
+            std::cout << "[Login Failed] Invalid credentials for: " << username << std::endl;
         }
 
         sqlite3_finalize(stmt);
+
         return authenticated;
     }
 
