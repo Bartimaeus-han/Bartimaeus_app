@@ -1,6 +1,7 @@
 #include "controllers/auth_controller.hpp"
 #include "services/auth_service.hpp"
-#include <csignal> // for signal processing
+#include "services/session_manager.hpp" // Session manager header
+#include <csignal>                      // for signal processing
 #include <httplib.h>
 #include <iostream>
 
@@ -15,6 +16,24 @@ void handle_signal(int signal) {
     }
 }
 
+// Helper for cookie parsing
+std::string getCookieValue(const std::string &cookie_header, const std::string &key) {
+    if (cookie_header.empty())
+        return "";
+    std::string prefix = key + "=";
+    size_t start = cookie_header.find(prefix);
+    if (start == std::string::npos)
+        return "";
+
+    start += prefix.length();
+    size_t end = cookie_header.find(";", start);
+
+    if (end == std::string::npos) {
+        return cookie_header.substr(start);
+    }
+    return cookie_header.substr(start, end - start);
+}
+
 int main() {
     httplib::Server svr;
     global_svr = &svr; // Register current server address in the global pointer
@@ -23,15 +42,20 @@ int main() {
     std::signal(SIGINT, handle_signal);
 
     AuthService auth_service;
-    AuthController auth_controller(auth_service);
+    SessionManager session_manager;
+
+    AuthController auth_controller(auth_service, session_manager);
 
     // Default Page - must regist before `set_mount_point`
-    svr.Get("/", [](const httplib::Request &req, httplib::Response &res) {
+    // svr.Get("/Path", function_to_run)
+    svr.Get("/", [&session_manager](const httplib::Request &req, httplib::Response &res) {
         // Check if the login session cookie exists
         if (req.has_header("Cookie")) {
             std::string cookie = req.get_header_value("Cookie");
-            if (cookie.find("auth_session") != std::string::npos) {
-                // If already logged in, redirect to the main dashboard
+            std::string session_id = getCookieValue(cookie, "auth_session");
+
+            // Validate actual activate session via session manager
+            if (!session_manager.validateSession(session_id).empty()) {
                 res.set_redirect("/index.html");
                 return;
             }
@@ -44,21 +68,32 @@ int main() {
     svr.set_mount_point("/", "./public");
 
     // Sign Up Route (POST)
-    svr.Post("/signup", [&](const httplib::Request &req, httplib::Response &res) {
+    svr.Post("/signup", [&auth_controller](const httplib::Request &req, httplib::Response &res) {
         auth_controller.handleSignUp(req, res);
     });
 
     // Log In Route (POST)
-    svr.Post("/login", [&](const httplib::Request &req, httplib::Response &res) {
+    svr.Post("/login", [&auth_controller](const httplib::Request &req, httplib::Response &res) {
         auth_controller.handleLogin(req, res);
     });
 
     // Member inquiry (GET /api/users)
-    svr.Get("/api/users", [&](const httplib::Request &req, httplib::Response &res) {
+    svr.Get("/api/users", [&auth_controller](const httplib::Request &req, httplib::Response &res) {
         auth_controller.handleGetUsers(req, res);
     });
 
-    std::cout << "================================================" << std::endl;
+    // Current session inquiry API route
+    svr.Get("/api/me", [&auth_controller](const httplib::Request &req, httplib::Response &res) {
+        auth_controller.handleGetMe(req, res);
+    });
+
+    // Logout API route
+    svr.Post("/logout", [&auth_controller](const httplib::Request &req, httplib::Response &res) {
+        auth_controller.handleLogout(req, res);
+    });
+
+    std::cout
+        << "================================================" << std::endl;
     std::cout << " Web Server is starting on http://localhost:8080" << std::endl;
     std::cout << "================================================" << std::endl;
 

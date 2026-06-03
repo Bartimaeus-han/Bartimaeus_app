@@ -118,8 +118,8 @@ public:
         return true;
     }
 
-    // 2. Secure sign In logic
-    bool signIn(const std::string &username, const std::string &password) {
+    // 2. Secure log in logic
+    bool login(const std::string &username, const std::string &password) {
         std::lock_guard<std::mutex> lock(db_mutex);
 
         sqlite3_stmt *stmt = nullptr;

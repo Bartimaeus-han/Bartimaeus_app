@@ -42,7 +42,8 @@ set(SOURCES
 # Create execute file
 # `SecureWebServer` is final execute file (in Winodws, .exe)
 # In CMake, `SecureWebServer` called **Target**
-add_executable(SecureWebServer ${SOURCES})
+add_executable(SecureWebServer ${SOURCES}
+    src/services/session_manager.hpp)
 
 # Link cpp-httplib library (auto binding header path and socket library) to **Target**
 # PRIVATE : use only in **Target**

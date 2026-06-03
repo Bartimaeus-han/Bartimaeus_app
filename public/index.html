@@ -46,34 +46,51 @@
         <button onclick="logout()">Log Out</button>
 
         <script>
-            // Function parsing specific key value in browser cookie.
-            function getCookie(name) {
-                const value = `; ${document.cookie}`;
-                const parts = value.split(`; ${name}=`);
+            // When page loading, request session info inquiry to server
+            fetch("/api/me")
+                .then(async (res) => {
+                    const data = await res.json();
 
-                if (parts.length == 2) return parts.pop().split(";").shift();
-                return null;
-            }
+                    // If the loing status is successfully confirmed
+                    if (res.ok && data.status === "success") {
+                        document.getElementById("username").textContent =
+                            data.username;
 
-            // if not log in, send to login page
-            const user = getCookie("auth_session");
-            if (!user) {
-                alert("please login!");
-                window.location.href = "/login.html";
-            } else {
-                document.getElementById("username").textContent = user;
-
-                // If 'admin' is in cookie, show admin page.
-                if (user.includes("admin")) {
-                    document.getElementById("adminBtn").style.display =
-                        "inline-block";
-                }
-            }
+                        if (data.username == "admin") {
+                            document.getElementById("adminBtn").style.display =
+                                "inline-block";
+                        }
+                    } else {
+                        // If not logged in or invalid session, redirect to login page
+                        alert("please login!");
+                        window.location.href = "/login.html";
+                    }
+                })
+                .catch(() => {
+                    alert(
+                        "Server communication error occurred when checking login status.",
+                    );
+                    window.location.href = "/login.html";
+                });
 
             function logout() {
-                document.cookie =
-                    "auth_session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-                window.location.href = "/login.html";
+                // Send logout POST request to server
+                fetch("/logout", {
+                    method: "POST",
+                })
+                    .then((res) => {
+                        if (res.ok) {
+                            // If logout is successful, redirect to login page
+                            window.location.href = "/login.html";
+                        } else {
+                            alert("Logout failed on server");
+                        }
+                    })
+                    .catch(() => {
+                        alert(
+                            "Server Communication error occurred during logout.",
+                        );
+                    });
             }
         </script>
     </body>
