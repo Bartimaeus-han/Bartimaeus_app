@@ -12,7 +12,6 @@
         <thead>
             <tr>
                 <th>ID</th>
-                <th>PW</th>
             </tr>
         </thead>
         <tbody id="userTableBody">
@@ -28,7 +27,7 @@
                 if (res.ok) {
                     const tbody = document.getElementById("userTableBody");
                     data.forEach((user) => {
-                        const row = `<tr><td>${user.username}</td><td>${user.password}</td></tr>`;
+                        const row = `<tr><td>${user.username}</td></tr>`;
                         tbody.innerHTML += row;
                     });
                 } else {

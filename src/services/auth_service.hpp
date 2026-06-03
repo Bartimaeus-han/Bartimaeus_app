@@ -158,14 +158,13 @@ public:
         std::lock_guard<std::mutex> lock(db_mutex);
         std::vector<User> users;
 
-        const char *query = "SELECT username, password FROM users;";
+        const char *query = "SELECT username FROM users;";
         sqlite3_stmt *stmt = nullptr;
 
         if (sqlite3_prepare_v2(db, query, -1, &stmt, nullptr) == SQLITE_OK) {
             while (sqlite3_step(stmt) == SQLITE_ROW) {
                 std::string username = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 0));
-                std::string password = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1));
-                users.push_back({username, password});
+                users.push_back({username, ""});
             }
         }
 
