@@ -21,15 +21,27 @@ int main() {
 
     // Receive SIGINT(Ctrl+C), run `handle_signal` function
     std::signal(SIGINT, handle_signal);
-    svr.set_mount_point("/", "./public");
 
     AuthService auth_service;
     AuthController auth_controller(auth_service);
 
-    // Default Page
-    svr.Get("/", [](const httplib::Request &, httplib::Response &res) {
-        res.set_content("Hello! This is a Vulnerable Secure Web Server.", "text/plaing; charset=UTF-8");
+    // Default Page - must regist before `set_mount_point`
+    svr.Get("/", [](const httplib::Request &req, httplib::Response &res) {
+        // Check if the login session cookie exists
+        if (req.has_header("Cookie")) {
+            std::string cookie = req.get_header_value("Cookie");
+            if (cookie.find("auth_session") != std::string::npos) {
+                // If already logged in, redirect to the main dashboard
+                res.set_redirect("/index.html");
+                return;
+            }
+        }
+        // If there is no session, redirect to the login page.
+        res.set_redirect("/login.html");
     });
+
+    // Mount the static directory after the root handler
+    svr.set_mount_point("/", "./public");
 
     // Sign Up Route (POST)
     svr.Post("/signup", [&](const httplib::Request &req, httplib::Response &res) {

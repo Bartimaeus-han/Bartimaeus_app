@@ -10,6 +10,7 @@
 /.vscode/
 /*.user/
 /*.suo/
+/test.cpp
 
 # Exclude machine language executable files and libraries
 *.exe

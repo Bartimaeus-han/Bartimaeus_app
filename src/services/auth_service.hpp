@@ -1,10 +1,13 @@
 #pragma once              // prevents header files from being included multiple times
 #include "db_queries.hpp" // Include SQL query header
+#include "picosha2.h"     // Include SHA-256 hashing library
 #include "sqlite3.h"
+#include <cctype> // Including character classification functions for hex validation (std::isxdigit)
 #include <iostream>
 #include <mutex> // Mutual Exclusion
 #include <string>
 #include <unordered_map>
+#include <vector> // Using dynamic vector
 
 // simple struct to hold member information
 struct User {
@@ -19,6 +22,12 @@ private:
     std::mutex db_mutex;                           // Simultaneous access control DB in multi-thread env
 
     sqlite3 *db = nullptr;
+
+    // using SHA-256 algorithm
+    std::string hashPasswordSHA256(const std::string &username, const std::string &password) {
+        // Using 'username' for unique salt
+        return picosha2::hash256_hex_string(password + "_" + username);
+    }
 
 public:
     // When Program started, open DB file
@@ -89,9 +98,11 @@ public:
             return false;
         }
 
+        std::string hashed_password = hashPasswordSHA256(username, password);
+
         // Parameter Binding
         sqlite3_bind_text(insert_stmt, 1, username.c_str(), -1, SQLITE_TRANSIENT);
-        sqlite3_bind_text(insert_stmt, 2, password.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(insert_stmt, 2, hashed_password.c_str(), -1, SQLITE_TRANSIENT);
 
         // Execute query and verify insert success
         rc = sqlite3_step(insert_stmt);
@@ -120,9 +131,11 @@ public:
             return false;
         }
 
+        std::string hashed_password = hashPasswordSHA256(username, password);
+
         // Parameter Binding
         sqlite3_bind_text(stmt, 1, username.c_str(), -1, SQLITE_TRANSIENT);
-        sqlite3_bind_text(stmt, 2, password.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 2, hashed_password.c_str(), -1, SQLITE_TRANSIENT);
 
         bool authenticated = false;
 

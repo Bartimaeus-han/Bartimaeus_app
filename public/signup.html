@@ -43,9 +43,10 @@
                     })
                         .then(async (res) => {
                             if (res.ok) {
-                                msg.style.color = "green";
-                                msg.textContent =
-                                    "Login Success!, go to login page.";
+                                alert(
+                                    "Sign up completed, Redirecting to login page...",
+                                );
+                                window.location.href = "/login.html";
                             } else {
                                 msg.style.color = "red";
                                 msg.textContent = data.message;
