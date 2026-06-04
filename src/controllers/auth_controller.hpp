@@ -101,7 +101,6 @@ public:
         std::string json_result = "[";
 
         for (size_t i = 0; i < users.size(); ++i) {
-            // R"(")})" 에서 괄호를 제거하여 R"("}")" 로 수정 (Remove parenthesis from R"(")})" and modify to R"("}")")
             json_result += "{\"username\":\"" + users[i].username + "\"}";
             if (i < users.size() - 1) {
                 json_result += ",";

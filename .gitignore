@@ -18,3 +18,16 @@
 *.lib
 *.obj
 *.pdb
+
+# macOS / Unix
+*.o
+*.a
+*.dylib
+*.so
+*.dSYM/
+
+# macOS system files
+.DS_Store
+
+# Cmake auto-generated
+compile_commands.json

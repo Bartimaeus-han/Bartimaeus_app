@@ -5,6 +5,7 @@ cmake_minimum_required(VERSION 3.15)
 # CXX means this project using C++ language
 # C means using C language too.
 project(SecureWebServer C CXX)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Set use C++20 standard
 set(CMAKE_CXX_STANDARD 20)
@@ -50,4 +51,3 @@ add_executable(SecureWebServer ${SOURCES}
 target_link_libraries(SecureWebServer PRIVATE httplib::httplib)
 
 target_include_directories(SecureWebServer PRIVATE src)
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
