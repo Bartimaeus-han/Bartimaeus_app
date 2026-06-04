@@ -3,6 +3,7 @@
 #include "../services/auth_service.hpp"
 #include "../services/session_manager.hpp"
 #include <httplib.h>
+#include <string>
 
 class AuthController {
 private:
@@ -25,6 +26,31 @@ private:
             return cookie_header.substr(start);
         }
         return cookie_header.substr(start, end - start);
+    }
+
+    // Escape special characters in a JSON string
+    std::string excapeJson(const std::string &input) {
+        std::string output;
+        for (char c : input) {
+            if (c == '"') {
+                output += "\\\"";
+            } else if (c == '\\') {
+                output += "\\\\";
+            } else if (c == '\b') {
+                output += "\\b";
+            } else if (c == '\f') {
+                output += "\\f";
+            } else if (c == '\n') {
+                output += "\\n";
+            } else if (c == '\r') {
+                output += "\\r";
+            } else if (c == '\t') {
+                output += "\\t";
+            } else {
+                output += c;
+            }
+        }
+        return output;
     }
 
 public:
@@ -101,7 +127,7 @@ public:
         std::string json_result = "[";
 
         for (size_t i = 0; i < users.size(); ++i) {
-            json_result += "{\"username\":\"" + users[i].username + "\"}";
+            json_result += "{\"username\":\"" + excapeJson(users[i].username) + "\"}";
             if (i < users.size() - 1) {
                 json_result += ",";
             }
@@ -127,7 +153,7 @@ public:
         }
 
         res.status = 200;
-        res.set_content(R"({"status":"success", "username":")" + username + R"("})", "application/json");
+        res.set_content(R"({"status":"success", "username":")" + excapeJson(username) + R"("})", "application/json");
     }
 
     // User logout request handler
