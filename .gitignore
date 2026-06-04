@@ -2,6 +2,8 @@
 
 # Exclude compile cache folder
 /build/
+/build_mac/
+/build_win/
 /out/
 
 # Exclude Visual Studio and IDE temporary file
