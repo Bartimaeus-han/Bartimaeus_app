@@ -33,3 +33,6 @@
 
 # Cmake auto-generated
 compile_commands.json
+
+# Local editor helper
+.clangd
