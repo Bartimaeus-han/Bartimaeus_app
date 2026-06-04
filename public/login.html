@@ -24,54 +24,6 @@
         <a href="/signup.html">Sign Up</a>
 
         <!-- The part inside the <script> tag is interpreted using JS syntax-->
-        <script>
-            // So use this annotation type
-            // document : Built-in global object that points to the entire HTML document currently loaded in the web browser
-            document
-                .getElementById("loginForm") // <form> tag with ID 'loginForm'
-                .addEventListener("submit", function (e) {
-                    // Prevent the browser automatically refreshing when submitting a form.
-                    e.preventDefault();
-
-                    // Get errorMsg and initialize
-                    const errorMsg = document.getElementById("errorMsg");
-                    errorMsg.textContent = "";
-                    // x-www-form-urlencoded standard formating object (data send to server)
-                    const params = new URLSearchParams();
-                    params.append(
-                        "username",
-                        document.getElementById("username").value,
-                    );
-                    params.append(
-                        "password",
-                        document.getElementById("password").value,
-                    );
-                    // Send AJAX request using fetch API
-                    fetch("/login", {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/x-www-form-urlencoded",
-                        },
-                        body: params.toString(),
-                    })
-                        // callback function executed when a response is received from the server
-                        .then(async (res) => {
-                            // Read asynchronizely the response body and parsing to JSON object
-                            const data = await res.json();
-                            // Log in success or fail
-                            if (res.ok) {
-                                window.location.href = "/index.html"; // Move to main page upon successful login
-                            } else {
-                                errorMsg.textContent = data.message;
-                            }
-                        })
-                        // Exception handling syntax
-                        .catch(
-                            () =>
-                                (errorMsg.textContent =
-                                    "Server Communication Error"),
-                        );
-                });
-        </script>
+        <script src="login.js"></script>
     </body>
 </html>

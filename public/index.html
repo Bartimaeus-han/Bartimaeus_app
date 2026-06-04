@@ -37,61 +37,13 @@
                 cursor: pointer;
                 font-weight: bold;
             "
-            onclick="location.href = '/admin.html'"
         >
             Admin Page
         </button>
 
         <br />
-        <button onclick="logout()">Log Out</button>
+        <button id="logoutBtn">Log Out</button>
 
-        <script>
-            // When page loading, request session info inquiry to server
-            fetch("/api/me")
-                .then(async (res) => {
-                    const data = await res.json();
-
-                    // If the loing status is successfully confirmed
-                    if (res.ok && data.status === "success") {
-                        document.getElementById("username").textContent =
-                            data.username;
-
-                        if (data.username == "admin") {
-                            document.getElementById("adminBtn").style.display =
-                                "inline-block";
-                        }
-                    } else {
-                        // If not logged in or invalid session, redirect to login page
-                        alert("please login!");
-                        window.location.href = "/login.html";
-                    }
-                })
-                .catch(() => {
-                    alert(
-                        "Server communication error occurred when checking login status.",
-                    );
-                    window.location.href = "/login.html";
-                });
-
-            function logout() {
-                // Send logout POST request to server
-                fetch("/logout", {
-                    method: "POST",
-                })
-                    .then((res) => {
-                        if (res.ok) {
-                            // If logout is successful, redirect to login page
-                            window.location.href = "/login.html";
-                        } else {
-                            alert("Logout failed on server");
-                        }
-                    })
-                    .catch(() => {
-                        alert(
-                            "Server Communication error occurred during logout.",
-                        );
-                    });
-            }
-        </script>
+        <script src="/index.js"></script>
     </body>
 </html>
