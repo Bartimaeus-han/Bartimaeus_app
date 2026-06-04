@@ -38,6 +38,11 @@ int main() {
     httplib::Server svr;
     global_svr = &svr; // Register current server address in the global pointer
 
+    svr.set_default_headers({{"Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"},
+                             {"X-Content-Type-Options", "nosniff"},
+                             {"X-Frame-Options", "DENY"},
+                             {"X-XSS-Protection", "1; mode=block"}});
+
     // Receive SIGINT(Ctrl+C), run `handle_signal` function
     std::signal(SIGINT, handle_signal);
 

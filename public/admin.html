@@ -1,8 +1,7 @@
 <!doctype html>
 <html lang="ko">
-<meta charset="UTF-8" />
-<title>Admin Dashboard</title>
-
+    <meta charset="UTF-8" />
+    <title>Admin Dashboard</title>
 </html>
 
 <body>
@@ -34,7 +33,7 @@
                         const tr = document.createElement("tr");
                         const td = document.createElement("td");
 
-                        td.innerHTML = user.username;
+                        td.textContent = user.username; // completely blocked Stored XSS
 
                         tr.appendChild(td);
                         // add node on virtual fragment

@@ -29,7 +29,7 @@ private:
     }
 
     // Escape special characters in a JSON string
-    std::string excapeJson(const std::string &input) {
+    std::string escapeJson(const std::string &input) {
         std::string output;
         for (char c : input) {
             if (c == '"') {
@@ -53,6 +53,18 @@ private:
         return output;
     }
 
+    // Validate username: only allow alphanumeric, underscore, hyphen (3~32 chars)
+    bool isValidUsername(const std::string &username) {
+        if (username.length() < 3 || username.length() > 32)
+            return false;
+
+        for (char c : username) {
+            if (!std::isalnum(c) && c != '_' && c != '-')
+                return false;
+        }
+        return true;
+    }
+
 public:
     // explicit : Completely block "Implict Conversion"
     explicit AuthController(AuthService &service, SessionManager &manager) : auth_service(service), session_manager(manager) {}
@@ -66,6 +78,13 @@ public:
         if (username.empty() || password.empty()) {
             res.status = 400;
             res.set_content(R"({"status":"error", "message":"Username or password are required"})",
+                            "application/json");
+            return;
+        }
+
+        if (!isValidUsername(username)) {
+            res.status = 400;
+            res.set_content(R"({"status":"error", "message":"Username must be 3-32 characters"})",
                             "application/json");
             return;
         }
@@ -127,7 +146,7 @@ public:
         std::string json_result = "[";
 
         for (size_t i = 0; i < users.size(); ++i) {
-            json_result += "{\"username\":\"" + excapeJson(users[i].username) + "\"}";
+            json_result += "{\"username\":\"" + escapeJson(users[i].username) + "\"}";
             if (i < users.size() - 1) {
                 json_result += ",";
             }
@@ -153,7 +172,7 @@ public:
         }
 
         res.status = 200;
-        res.set_content(R"({"status":"success", "username":")" + excapeJson(username) + R"("})", "application/json");
+        res.set_content(R"({"status":"success", "username":")" + escapeJson(username) + R"("})", "application/json");
     }
 
     // User logout request handler
