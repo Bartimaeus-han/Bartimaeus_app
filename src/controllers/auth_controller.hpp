@@ -117,7 +117,7 @@ public:
             std::string session_id = session_manager.createSession(username);
 
             // Vulnerable Login authentication - plain text cookie
-            res.set_header("Set-Cookie", "auth_session=" + session_id + "; Path=/; HttpOnly; SameSite=Lax;");
+            res.set_header("Set-Cookie", "auth_session=" + session_id + "; Path=/; HttpOnly; SameSite=Lax; Secure;");
             res.set_content(R"({"status":"success", "message":"Login successful"})", "application/json");
         } else {
             res.status = 401;
@@ -183,7 +183,7 @@ public:
         // Destroy session on the server-side session store
         session_manager.destroySession(session_id);
 
-        res.set_header("Set-Cookie", "auth_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0;");
+        res.set_header("Set-Cookie", "auth_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Secure;");
         res.status = 200;
         res.set_content(R"({"status":"success", "message":"Logged out successfully"})", "application/json");
     }

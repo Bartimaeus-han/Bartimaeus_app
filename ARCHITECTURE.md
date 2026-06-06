@@ -46,7 +46,7 @@
 * **구현 방식**: 
   1. 클라이언트 측에 단순 노출되던 회원 ID 쿠키를 폐기하고, UUID 급의 **무작위 난수 세션 ID**를 생성하여 쿠키로 발급합니다.
   2. 서버 측 `SessionManager` 메모리 내에서만 유효 세션 테이블을 관리(White-list 방식)합니다.
-  3. 로그인 시 기존 세션을 지우고 새 세션을 할당하여 **Session Fixation** 공격을 방지하며, 세션 쿠키 발급 시 **`HttpOnly`** 플래그를 설정하여 Javascript 스크립트를 통한 쿠키 유출(**Session Hijacking**) 경로를 원천 통제합니다.
+  3. 로그인 시 기존 세션을 지우고 새 세션을 할당하여 **Session Fixation** 공격을 방지하며, 세션 쿠키 발급 시 **`HttpOnly`** 및 **`Secure`** 플래그를 설정하여 스크립트 유출 및 평문 전송 경로를 차단합니다.
 
 ### 3.3 교차 사이트 스크립팅 (XSS) 방어
 * **C++ JSON Escape**: [auth_controller.hpp](file:///c:/Projects/Bartimaeus_app/src/controllers/auth_controller.hpp)에서 JSON 포맷의 문자열 데이터를 리턴할 때, 특수 문자(`<`, `>`, `"`, `\`, `/` 등)를 이스케이프하는 헬퍼를 경유시켜 브라우저 오동작(Stored XSS)을 방어합니다.
