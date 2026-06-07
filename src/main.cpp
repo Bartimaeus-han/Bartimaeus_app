@@ -36,7 +36,8 @@ std::string getCookieValue(const std::string &cookie_header, const std::string &
 }
 
 int main() {
-    httplib::Server svr;
+    // Initialize HTTPS server by setting paths to self-signed certificate and private key files (/certs/cert.pem&key.pem)
+    httplib::SSLServer svr("./certs/cert.pem", "./certs/key.pem");
     global_svr = &svr; // Register current server address in the global pointer
 
     svr.set_default_headers({{"Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"},
@@ -99,10 +100,9 @@ int main() {
         auth_controller.handleLogout(req, res);
     });
 
-    std::cout
-        << "================================================" << std::endl;
-    std::cout << " Web Server is starting on http://localhost:9090" << std::endl;
-    std::cout << "================================================" << std::endl;
+    std::cout << "========================================================" << std::endl;
+    std::cout << " Secure Web Server is starting on https://localhost:9090" << std::endl;
+    std::cout << "========================================================" << std::endl;
 
     if (!svr.listen("0.0.0.0", 9090)) {
         std::cerr << "Failed to start server!" << std::endl;

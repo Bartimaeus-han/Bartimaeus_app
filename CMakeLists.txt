@@ -40,6 +40,10 @@ set(SOURCES
     src/sqlite3.c   # Include directly in the build target
 )
 
+# Search for OpenSSL package
+set(OPENSSL_ROOT_DIR "C:/Users/Bartimaeus/anaconda3/Library")
+find_package(OpenSSL REQUIRED)
+
 # Create execute file
 # `SecureWebServer` is final execute file (in Winodws, .exe)
 # In CMake, `SecureWebServer` called **Target**
@@ -47,8 +51,10 @@ add_executable(SecureWebServer ${SOURCES}
     src/services/session_manager.hpp
     src/services/login_limiter.hpp)
 
-# Link cpp-httplib library (auto binding header path and socket library) to **Target**
-# PRIVATE : use only in **Target**
-target_link_libraries(SecureWebServer PRIVATE httplib::httplib)
+# Link OpenSSL and cpp-httplib libraries
+target_link_libraries(SecureWebServer PRIVATE httplib::httplib OpenSSL::SSL OpenSSL::Crypto)
+
+# Enable OpenSSL support macro definition
+target_compile_definitions(SecureWebServer PRIVATE CPPHTTPLIB_OPENSSL_SUPPORT)
 
 target_include_directories(SecureWebServer PRIVATE src)
