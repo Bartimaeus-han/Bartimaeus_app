@@ -13,6 +13,7 @@
 struct User {
     std::string username;
     std::string password; // in this time not encryption
+    std::string role;     // role field
 };
 
 class AuthService {
@@ -51,6 +52,10 @@ public:
         } else {
             std::cout << "[DB Success] 'users' table is ready (checked/created)." << std::endl;
         }
+
+        sqlite3_exec(db, "ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'USER';", nullptr, nullptr, nullptr);
+
+        sqlite3_exec(db, "UPDATE users SET role = 'ADMIN' WHERE username = 'admin';", nullptr, nullptr, nullptr);
     }
 
     ~AuthService() {
@@ -151,6 +156,35 @@ public:
         sqlite3_finalize(stmt);
 
         return authenticated;
+    }
+
+    std::string getUserRole(const std::string &username) {
+        std::lock_guard<std::mutex> lock(db_mutex);
+
+        sqlite3_stmt *stmt = nullptr;
+
+        // Prepare query for role lookup
+        int rc = sqlite3_prepare_v2(db, Queries::SECURE_SELECT_USER_ROLE, -1, &stmt, nullptr);
+        if (rc != SQLITE_OK) {
+            std::cerr << "[DB Error] Prepare select user role failed: " << sqlite3_errmsg(db) << std::endl;
+            return "";
+        }
+
+        // Parameter binding
+        sqlite3_bind_text(stmt, 1, username.c_str(), -1, SQLITE_TRANSIENT);
+
+        std::string role = "";
+
+        // Execute query and retrieve result
+        if (sqlite3_step(stmt) == SQLITE_ROW) {
+            const unsigned char *val = sqlite3_column_text(stmt, 0);
+            if (val) {
+                role = reinterpret_cast<const char *>(val);
+            }
+        }
+
+        sqlite3_finalize(stmt);
+        return role;
     }
 
     // get all registered user list (for admin)

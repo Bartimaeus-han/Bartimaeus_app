@@ -5,7 +5,8 @@ namespace Queries {
 constexpr const char *CREATE_USERS_TABLE =
     "CREATE TABLE IF NOT EXISTS users("
     "username TEXT PRIMARY KEY, "
-    "password TEXT NOT NULL"
+    "password TEXT NOT NULL, "
+    "role TEXT NOT NULL DEFAULT 'USER'"
     ");";
 
 // ========================================================
@@ -20,4 +21,6 @@ constexpr const char *SECURE_INSERT_USER = "INSERT INTO users (username, passwor
 
 // Secure query for login validation
 constexpr const char *SECURE_SELECT_USER = "SELECT * FROM users WHERE username = ? AND password = ?;";
+
+constexpr const char *SECURE_SELECT_USER_ROLE = "SELECT role FROM users WHERE username = ?;";
 } // namespace Queries

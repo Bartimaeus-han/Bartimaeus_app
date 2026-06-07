@@ -7,10 +7,10 @@ fetch("/api/me")
         if (res.ok && data.status === "success") {
             document.getElementById("username").textContent = data.username;
 
-            if (data.username === "admin") {
+            if (data.role === "ADMIN") {
                 const adminBtn = document.getElementById("adminBtn");
                 adminBtn.style.display = "inline-block";
-                adminBtn.addEventListener("click", function() {
+                adminBtn.addEventListener("click", function () {
                     window.location.href = "/admin.html";
                 });
             }
@@ -21,12 +21,14 @@ fetch("/api/me")
         }
     })
     .catch(() => {
-        alert("Server communication error occurred when checking login status.");
+        alert(
+            "Server communication error occurred when checking login status.",
+        );
         window.location.href = "/login.html";
     });
 
 // Bind logout event
-document.getElementById("logoutBtn").addEventListener("click", function() {
+document.getElementById("logoutBtn").addEventListener("click", function () {
     // Send logout POST request to server
     fetch("/logout", {
         method: "POST",

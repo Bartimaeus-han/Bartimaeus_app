@@ -154,7 +154,10 @@ public:
         // Validate session via session manager and get logged-in username
         std::string username = session_manager.validateSession(session_id);
 
-        if (username != "admin") {
+        // Get actual role for the user
+        std::string role = auth_service.getUserRole(username);
+
+        if (role != "ADMIN") {
             res.status = 403; // Forbidden
             res.set_content(R"({"status":"error", "message":"Access denied, Administrator privilege required."})", "application/json");
             return;
@@ -189,8 +192,10 @@ public:
             return;
         }
 
+        std::string role = auth_service.getUserRole(username);
+
         res.status = 200;
-        res.set_content(R"({"status":"success", "username":")" + escapeJson(username) + R"("})", "application/json");
+        res.set_content(R"({"status":"success", "username":")" + escapeJson(username) + R"(", "role":")" + escapeJson(role) + R"("})", "application/json");
     }
 
     // User logout request handler
