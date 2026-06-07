@@ -5,8 +5,11 @@
             "name": "windows-default",
             "displayName": "Windows Default",
             "description": "Windows build configuration targeting build_win directory",
-            "generator": "Visual Studio 18 2026",
-            "architecture": "x64",
+            "generator": "Ninja",
+            "architecture": {
+                "value": "x64",
+                "strategy": "external"
+            },
             "binaryDir": "${sourceDir}/build_win"
         }
     ]

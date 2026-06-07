@@ -40,3 +40,36 @@
 | **`4a2b212`** | `src/*` | **Refactor** | 기존에 남아있던 취약한 쿼리 관련 잔재 파일 정리 및 `src/controllers`, `src/services` 형태의 패키지 아키텍처 재정립 |
 | **`5e759c5`** | `CMakeLists.txt` | **Refactor** | 크로스 컴파일 호환성 강화를 위해 빌드 시스템 내부 스크립트 수정 및 링커 설정 보강 |
 | **Local Changes** | `src/*`, `CMakeLists.txt` | **Security (RateLimit)** | 자동화 무차별 대입 공격(Brute Force) 방어를 위해 ID 기반의 로그인 시도 차단 정책(`LoginLimiter`) 도입 및 `AuthController` / `main.cpp` 연동 |
+
+---
+
+## 3. CMake & 빌드 환경 트러블슈팅 히스토리 (C++17, Ninja, MSVC 연동)
+
+### 3.1 AI 실책 및 교훈 (Mistakes & Lessons Learned)
+향후 개발 세션 진행 시 동일한 혼선과 시간 낭비를 방지하기 위해 AI가 저지른 판단 오류와 교훈을 명확히 기록합니다.
+
+1. **에디터 설정 선제 검증 누락**:
+   * 현상: 사용자가 에디터(Cursor/VS Code) 내에서 `CMake: Select a Kit` 명령어 자체가 아예 뜨지 않는다고 호소함.
+   * 원인: `.vscode/settings.json` 파일에 `"cmake.useCMakePresets": "always"`로 설정되어 프리셋 모드가 강제 구동 중이었던 점을 사전에 탐색하지 않아 불필요한 해결책을 반복 제시함.
+2. **Ninja 제너레이터의 아키텍처 지원 오해**:
+   * 현상: `CMakePresets.json`에 무턱대고 `"architecture": "x64"`를 기입했다가 `Generator Ninja does not support platform specification` 에러를 유발함.
+   * 원인: 이 옵션은 Visual Studio 제너레이터 전용 옵션이며, Ninja 빌드 도구는 직접 아키텍처 명시를 해석하지 못하고 환경 변수에 전적으로 의존한다는 기본 제약을 망각함.
+3. **캐시 오염 파악 지연**:
+   * 현상: 설정 파일 롤백 후 빌드를 돌렸으나 계속 컴파일러를 찾지 못하는 동일 에러 반복 발생.
+   * 원인: `build_win/CMakeCache.txt`에 기록된 오염된 이전 빌드 설정을 강제로 날리지 않으면 동일한 값으로 계속 시도된다는 점을 간과하여 한 템포 늦게 캐시 클린 명령(`CMake: Delete Cache and Reconfigure`)을 제공함.
+4. **UI 화면 정보 환각 (Hallucination)**:
+   * 현상: 스크린샷 내 깃 동기화 화살표(`↻`)를 CMake 버튼으로 우기고, 있지도 않은 `[No Active Target]` 텍스트가 상태바에 표시되어 있다고 강변함.
+   * 원인: Visual Studio Code와 Cursor 에디터의 최신 상태바 디자인 기본값 및 Git 플러그인 레이아웃을 확실히 확인하지 않고 지레짐작하여 설명하여 사용자에게 극심한 혼란을 안김.
+
+### 3.2 현재 프로젝트 빌드 설정 값
+* **빌드 제너레이터**: `Ninja` (최종 타겟 실행 파일: `SecureWebServer.exe`)
+  * `CMAKE_EXPORT_COMPILE_COMMANDS`를 통해 `compile_commands.json`을 강제 활성화하여 `clangd` 언어 서버가 정상 동작하도록 보장함.
+* **컴파일러**: `MSVC 19.50` (64비트 x64)
+  * MinGW GCC 6.3.0은 버전이 너무 낡아 `cpp-httplib` 빌드 오류가 발생하므로 사용하지 않음.
+* **IDE (VS Code/Cursor) 연동 방식**:
+  * `.vscode/settings.json` 내 `"cmake.useCMakePresets"`는 `"never"`로 비활성화하여 **Kit 모드**를 활성화.
+  * `"cmake.generator"`는 `"Ninja"`로 고정.
+  * `CMake: Select a Kit` 메뉴에서 **`Visual Studio Community Release - amd64`**를 수동 선택하여 빌드 환경을 구축함.
+* **명령줄(Terminal)에서의 직접 빌드**:
+  * `x64 Native Tools Command Prompt for VS` 터미널을 열고 `cmake --preset windows-default`를 통해 64비트 MSVC를 타겟으로 1회 구성한 뒤, 이후에는 일반 터미널에서도 `cmake --build build_win` 명령어로 빌드 가능.
+
