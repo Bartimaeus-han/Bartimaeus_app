@@ -15,6 +15,7 @@
   * **`services/`**: 핵심 비즈니스 로직 및 외부 연동(DB, 세션 관리 등) 계층
     * [auth_service.hpp](file:///c:/Projects/Bartimaeus_app/src/services/auth_service.hpp): 사용자 가입/로그인 로직, SHA256 암호화 처리, DB 쿼리 실행(Prepared Statements 적용).
     * [session_manager.hpp](file:///c:/Projects/Bartimaeus_app/src/services/session_manager.hpp): 난수 기반 세션 ID 발급 및 메모리 기반 화이트리스트 세션 테이블 검증.
+    * [login_limiter.hpp](file:///c:/Projects/Bartimaeus_app/src/services/login_limiter.hpp): 로그인 실패 횟수 누적 및 임시 계정 잠금 정책 관리.
   * **`db_queries.hpp`**: SQLite3 쿼리 보조 상수 및 테이블 빌드 함수.
 * **`public/`**: 웹 프론트엔드 정적 리소스 (HTML, JS, CSS)
   * [index.html](file:///c:/Projects/Bartimaeus_app/public/index.html) / `admin.html` / `login.html`: 각각의 화면 템플릿.
@@ -53,3 +54,8 @@
 * **기본 보안 헤더 및 CSP**:
   * [main.cpp](file:///c:/Projects/Bartimaeus_app/src/main.cpp)에서 `Content-Security-Policy`(`default-src 'self'`)를 포함한 주요 브라우저 보안 헤더들을 응답 기본값으로 강제 설정합니다.
   * 웹 페이지 내의 인라인 스크립트를 허용하지 않고 오직 독립된 `.js` 파일의 코드만 해석하도록 구성하여 반사형/저장형 XSS의 공격면을 통제합니다.
+
+### 3.4 자동화 공격 (무차별 대입) 방어
+* **구현 방식**: `LoginLimiter` 클래스를 이용해 각 `username`별로 로그인 실패 횟수 및 잠금 만료 시각을 메모리 상에서 관리합니다. `AuthController`는 실제 DB 로그인 쿼리를 호출하기 전, `getRemainingLockoutTime` 함수를 사용하여 선제적으로 차단(Pre-Check)을 처리(HTTP Status `429` 반환)합니다.
+* **목적**: 무차별적인 무차별 대입(Brute Force) 공격을 차단해 유저 계정을 지키고, 불필요한 DB 해시 검증 연산을 차단하여 서버 가용성(DoS 방지)을 확보합니다.
+

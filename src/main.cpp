@@ -1,5 +1,6 @@
 #include "controllers/auth_controller.hpp"
 #include "services/auth_service.hpp"
+#include "services/login_limiter.hpp"   // Login limiter header
 #include "services/session_manager.hpp" // Session manager header
 #include <csignal>                      // for signal processing
 #include <httplib.h>
@@ -48,8 +49,9 @@ int main() {
 
     AuthService auth_service;
     SessionManager session_manager;
+    LoginLimiter login_limiter;
 
-    AuthController auth_controller(auth_service, session_manager);
+    AuthController auth_controller(auth_service, session_manager, login_limiter);
 
     // Default Page - must regist before `set_mount_point`
     // svr.Get("/Path", function_to_run)

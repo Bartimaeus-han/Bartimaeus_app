@@ -1,6 +1,7 @@
 // A controller that receives HTTP request parameters and formats the response.
 #pragma once
 #include "../services/auth_service.hpp"
+#include "../services/login_limiter.hpp"
 #include "../services/session_manager.hpp"
 #include <httplib.h>
 #include <string>
@@ -9,6 +10,7 @@ class AuthController {
 private:
     AuthService &auth_service;
     SessionManager &session_manager;
+    LoginLimiter &login_limiter;
 
     // Helper function to extract the value of a specific key from the cookie header
     std::string getCookieValue(const std::string &cookie_header, const std::string &key) {
@@ -67,7 +69,7 @@ private:
 
 public:
     // explicit : Completely block "Implict Conversion"
-    explicit AuthController(AuthService &service, SessionManager &manager) : auth_service(service), session_manager(manager) {}
+    explicit AuthController(AuthService &service, SessionManager &manager, LoginLimiter &limiter) : auth_service(service), session_manager(manager), login_limiter(limiter) {}
 
     // User registration request handler
     void handleSignUp(const httplib::Request &req, httplib::Response &res) {
@@ -111,15 +113,31 @@ public:
             return;
         }
 
+        // 1. Check lockout status
+        long long remaining_time = login_limiter.getRemainingLockoutTime(username);
+        if (remaining_time > 0) {
+            res.status = 429; // Too Many Requests
+            res.set_content(R"({"status":"error", "message":"Account is temporarily locked. Please try again in ")" +
+                                std::to_string(remaining_time) + R"( seconds."})",
+                            "application/json");
+
+            return;
+        }
+
         if (auth_service.login(username, password)) {
             res.status = 200;
 
+            // Reset failure attempts upon successful login
+            login_limiter.resetAttempts(username);
             std::string session_id = session_manager.createSession(username);
 
             // Vulnerable Login authentication - plain text cookie
             res.set_header("Set-Cookie", "auth_session=" + session_id + "; Path=/; HttpOnly; SameSite=Lax; Secure;");
             res.set_content(R"({"status":"success", "message":"Login successful"})", "application/json");
         } else {
+            // Record failure and check for lockout
+            login_limiter.recordFailure(username);
+
             res.status = 401;
             res.set_content(R"({"status":"error", "message":"Invalid username or password"})", "application/json");
         }
