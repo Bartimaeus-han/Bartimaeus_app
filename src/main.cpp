@@ -61,8 +61,11 @@ int main() {
                 std::string session_id = getCookieValue(cookie, "auth_session");
 
                 if (!session_manager.validateSession(session_id).empty()) {
-                    res.set_redirect("/index.html");
-                    return httplib::Server::HandlerResponse::Handled;
+                    if (req.path == "/") {
+                        res.set_redirect("/index.html");
+                        return httplib::Server::HandlerResponse::Handled;
+                    }
+                    return httplib::Server::HandlerResponse::Unhandled;
                 }
             }
 

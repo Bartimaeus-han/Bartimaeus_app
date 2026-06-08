@@ -18,7 +18,7 @@ function Import-Vcvars {
         return
     }
     
-    Write-Host "MSVC 빌드 환경 변수를 불러오는 중... (Loading MSVC build environment variables...)" -ForegroundColor Gray
+    Write-Host "Loading MSVC build environment variables..." -ForegroundColor Gray
     
     # cmd.exe를 실행하여 환경 변수 목록 추출 (Run cmd.exe to extract environment variables list)
     $cmdLine = "`"$vcvars`" amd64 && set"
