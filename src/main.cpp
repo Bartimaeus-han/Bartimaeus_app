@@ -56,18 +56,31 @@ int main() {
 
     svr.set_pre_routing_handler([&session_manager](const httplib::Request &req, httplib::Response &res) {
         if (req.path == "/" || req.path == "/index.html") {
+            bool is_logged_in = false;
+
+            // Session validation phase
             if (req.has_header("Cookie")) {
                 std::string cookie = req.get_header_value("Cookie");
                 std::string session_id = getCookieValue(cookie, "auth_session");
 
+                // if session is exist
                 if (!session_manager.validateSession(session_id).empty()) {
-                    res.set_redirect("/index.html");
-                    return httplib::Server::HandlerResponse::Handled;
+                    is_logged_in = true;
                 }
             }
 
-            res.set_redirect("/login.html");
-            return httplib::Server::HandlerResponse::Handled;
+            if (is_logged_in) {
+                // Guide to 'index.html' only if entering via root(/)
+                if (req.path == "/") {
+                    res.set_redirect("/index.html");
+                    return httplib::Server::HandlerResponse::Handled;
+                }
+                // If already requesting index.html, bypass control and pass to static handler
+                return httplib::Server::HandlerResponse::Unhandled;
+            } else {
+                res.set_redirect("/login.html");
+                return httplib::Server::HandlerResponse::Handled;
+            }
         }
         return httplib::Server::HandlerResponse::Unhandled;
     });

@@ -10,6 +10,7 @@
 struct Session {
     std::string username;                             // Session owner's username
     std::chrono::system_clock::time_point expires_at; // Session expiration time
+    std::string csrf_token;                           // Token for CSRF defense
 };
 
 class SessionManager {
@@ -46,10 +47,14 @@ public:
 
         std::string session_id = generateSessionId();
 
+        // Re-use generator to create CSRF token
+        std::string csrf_token = generateSessionId();
+
         auto expires_at = std::chrono::system_clock::now() + SESSION_LIFETIME;
 
         // Session ID -> Session Info
-        sessions_[session_id] = {username, expires_at};
+        // Bind generated token to structure
+        sessions_[session_id] = {username, expires_at, csrf_token};
 
         return session_id;
     }
@@ -72,6 +77,42 @@ public:
         }
 
         return it->second.username;
+    }
+
+    // Retrieve stored CSRF toekn by session ID
+    std::string getCsrfToken(const std::string &session_id) {
+        std::lock_guard<std::mutex> lock(session_mutex_);
+
+        // find session id in temporary memory (sessions_)
+        auto it = sessions_.find(session_id);
+
+        // if session not exist
+        if (it == sessions_.end()) {
+            // return nothing
+            return "";
+        }
+
+        // expire session & csrf if that session is expired
+        if (std::chrono::system_clock::now() > it->second.expires_at) {
+            sessions_.erase(it);
+            return "";
+        }
+
+        return it->second.csrf_token;
+    }
+
+    // Validate the CSRF token
+    bool validateCsrfToekn(const std::string &session_id, const std::string &token) {
+        // if token value is empty
+        if (token.empty()) {
+            return false;
+        }
+
+        // actual token is stored in server-side storage(sessions_)
+        std::string actual_token = getCsrfToken(session_id);
+
+        // !actual_token.empty() => Check that storage not have csrf token
+        return (!actual_token.empty() && actual_token == token);
     }
 
     // Delete session - for logout processing

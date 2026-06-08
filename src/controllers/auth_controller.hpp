@@ -194,8 +194,16 @@ public:
 
         std::string role = auth_service.getUserRole(username);
 
+        // Retrieve stored CSRF toekn from session manager
+        std::string csrf_token = session_manager.getCsrfToken(session_id);
+
         res.status = 200;
-        res.set_content(R"({"status":"success", "username":")" + escapeJson(username) + R"(", "role":")" + escapeJson(role) + R"("})", "application/json");
+        // json value - username, role, csrf_token
+        res.set_content(R"({"status":"success", "username":")" + escapeJson(username) +
+                            R"(", "role":")" + escapeJson(role) +
+                            R"(", "csrf_token":")" + escapeJson(csrf_token) +
+                            R"("})",
+                        "application/json");
     }
 
     // User logout request handler
@@ -203,7 +211,17 @@ public:
         std::string cookie_header = req.get_header_value("Cookie");
         std::string session_id = getCookieValue(cookie_header, "auth_session");
 
-        // Destroy session on the server-side session store
+        // Retrieve X-CSRF-Token value from the request header
+        std::string csrf_token_header = req.get_header_value("X-CSRF-TOKEN");
+
+        // Perform CSRF toekn validation
+        if (!session_manager.validateCsrfToekn(session_id, csrf_token_header)) {
+            res.status = 403; // Access Denied
+            res.set_content(R"({"status":"error", "message":"CSRF token validation failed"})", "application/json");
+            return;
+        }
+
+        // Destroy session on the server-side session store if validation passes
         session_manager.destroySession(session_id);
 
         res.set_header("Set-Cookie", "auth_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Secure;");

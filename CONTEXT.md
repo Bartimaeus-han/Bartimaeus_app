@@ -40,6 +40,7 @@
 | **`4a2b212`** | `src/*` | **Refactor** | 기존에 남아있던 취약한 쿼리 관련 잔재 파일 정리 및 `src/controllers`, `src/services` 형태의 패키지 아키텍처 재정립 |
 | **`5e759c5`** | `CMakeLists.txt` | **Refactor** | 크로스 컴파일 호환성 강화를 위해 빌드 시스템 내부 스크립트 수정 및 링커 설정 보강 |
 | **Local Changes** | `src/*`, `CMakeLists.txt` | **Security (RateLimit)** | 자동화 무차별 대입 공격(Brute Force) 방어를 위해 ID 기반의 로그인 시도 차단 정책(`LoginLimiter`) 도입 및 `AuthController` / `main.cpp` 연동 |
+| **Local Changes** | `src/*`, `public/js/*` | **Security (CSRF)** | 동적 세션 토큰 방식의 Anti-CSRF 방어를 도입하여 세션 정보 반환(`/api/me`) 시 토큰을 발급하고, 로그아웃(`/logout`) POST 요청 시 헤더 검증 수행 |
 
 ---
 
