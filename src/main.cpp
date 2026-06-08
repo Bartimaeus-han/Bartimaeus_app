@@ -54,22 +54,22 @@ int main() {
 
     AuthController auth_controller(auth_service, session_manager, login_limiter);
 
-    // Default Page - must regist before `set_mount_point`
-    // svr.Get("/Path", function_to_run)
-    svr.Get("/", [&session_manager](const httplib::Request &req, httplib::Response &res) {
-        // Check if the login session cookie exists
-        if (req.has_header("Cookie")) {
-            std::string cookie = req.get_header_value("Cookie");
-            std::string session_id = getCookieValue(cookie, "auth_session");
+    svr.set_pre_routing_handler([&session_manager](const httplib::Request &req, httplib::Response &res) {
+        if (req.path == "/" || req.path == "/index.html") {
+            if (req.has_header("Cookie")) {
+                std::string cookie = req.get_header_value("Cookie");
+                std::string session_id = getCookieValue(cookie, "auth_session");
 
-            // Validate actual activate session via session manager
-            if (!session_manager.validateSession(session_id).empty()) {
-                res.set_redirect("/index.html");
-                return;
+                if (!session_manager.validateSession(session_id).empty()) {
+                    res.set_redirect("/index.html");
+                    return httplib::Server::HandlerResponse::Handled;
+                }
             }
+
+            res.set_redirect("/login.html");
+            return httplib::Server::HandlerResponse::Handled;
         }
-        // If there is no session, redirect to the login page.
-        res.set_redirect("/login.html");
+        return httplib::Server::HandlerResponse::Unhandled;
     });
 
     // Mount the static directory after the root handler

@@ -59,3 +59,11 @@
 * **구현 방식**: `LoginLimiter` 클래스를 이용해 각 `username`별로 로그인 실패 횟수 및 잠금 만료 시각을 메모리 상에서 관리합니다. `AuthController`는 실제 DB 로그인 쿼리를 호출하기 전, `getRemainingLockoutTime` 함수를 사용하여 선제적으로 차단(Pre-Check)을 처리(HTTP Status `429` 반환)합니다.
 * **목적**: 무차별적인 무차별 대입(Brute Force) 공격을 차단해 유저 계정을 지키고, 불필요한 DB 해시 검증 연산을 차단하여 서버 가용성(DoS 방지)을 확보합니다.
 
+---
+
+## 4. 향후 보안 및 아키텍처 개선 과제 (Future Improvements)
+
+* **설정 기반 보안 인터셉터 (Configuration-based Security Interceptor)**:
+  * 현재 `main.cpp`에서 개별 경로별로 작성된 인증 분기를, Enum(`AuthLevel`) 및 정책 맵(`PAGE_AUTH_POLICIES`) 기반의 일관된 미들웨어 인터셉터 구조로 리팩토링할 예정 (정적 파일 및 API 예외 처리 기능 포함).
+
+
