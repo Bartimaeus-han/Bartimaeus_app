@@ -22,6 +22,19 @@ fetch("/api/me")
                     window.location.href = "/admin.html";
                 });
             }
+
+            // Extract notice from URL parameter and binding
+            const urlParams = new URLSearchParams(window.location.search);
+            const notice = urlParams.get("notice");
+            if (notice) {
+                const container = document.getElementById("noticeContainer");
+                const content = document.getElementById("noticeContent");
+
+                if (container && content) {
+                    container.style.display = "block"; // Activate the container area
+                    content.innerHTML = notice; // Vulnerable innerHTML API use
+                }
+            }
         } else {
             // If not logged in or invalid session, redirect to login page
             alert("please login!");

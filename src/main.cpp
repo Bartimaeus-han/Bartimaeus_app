@@ -46,7 +46,7 @@ int main() {
     //  => Inline script or Inline event handler attack is restricted at browser level
     //     - <script>alert(1)</script>       - <img src=x onerror=alert(1)>
     // style-src 'self' : CSS stylesheet allow same domain resource and inline style in tag
-    svr.set_default_headers({{"Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"},
+    svr.set_default_headers({//{"Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"},
                              {"X-Content-Type-Options", "nosniff"},
                              {"X-Frame-Options", "DENY"},
                              {"X-XSS-Protection", "1; mode=block"}});
