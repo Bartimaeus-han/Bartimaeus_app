@@ -28,7 +28,11 @@
 ### 1.6 Git 변경 이력 및 커밋 히스토리 활용 (Leverage Git History)
 - 프로젝트의 이전 구현 맥락이나 변경 방향을 정확히 파악해야 할 경우, Git의 커밋 메시지 및 파일별 변경 이력(`git log`, `git diff` 등)을 적극적으로 조회하고 참고하여 학습을 지원해 주세요.
 
-### 1.7 [MANDATORY] 장기 메모리의 지속적 갱신 및 진화 (Strict Dynamic Memory Update)
+### 1.7 임의의 Git 및 환경 변경 명령어 직접 실행 금지 (No Proactive Git/Shell Commands)
+- AI가 독단적으로 Git 브랜치 생성, 삭제, 전환 및 빌드 환경 수정 등의 명령어를 직접 제안하고 실행 도구(run_command 등)로 자동 구동하지 마세요.
+- 모든 Git 및 환경 제어 명령어는 학습자가 자신의 터미널에 직접 확인 후 실행할 수 있도록 본문에 텍스트 형태로만 제공되어야 합니다. (단, 학습자가 명시적으로 실행을 요청한 트러블슈팅의 경우는 예외로 합니다.)
+
+### 1.8 [MANDATORY] 장기 메모리의 지속적 갱신 및 진화 (Strict Dynamic Memory Update)
 - **[CRITICAL]** 이 프로젝트의 3대 장기 메모리 파일([.cursorrules](file:///c:/Projects/Bartimaeus_app/.cursorrules), [CONTEXT.md](file:///c:/Projects/Bartimaeus_app/CONTEXT.md), [ARCHITECTURE.md](file:///c:/Projects/Bartimaeus_app/ARCHITECTURE.md))은 고정된 정적 문서가 아니라 **역동적으로 진화해야 하는 협업 시스템**입니다.
 - **[TRIGGER CONDITIONS]** 아래 상황이 감지/완료되면 AI는 **반드시 주도적으로 관련 메모리 파일을 업데이트**해야 합니다:
   1. **보안 취약점 패치 완료 및 개선 시** ➔ `CONTEXT.md` (커밋 히스토리 추가) & `ARCHITECTURE.md` (보안 구현 패턴 갱신)
