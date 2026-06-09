@@ -2,9 +2,14 @@
 #include "services/auth_service.hpp"
 #include "services/login_limiter.hpp"   // Login limiter header
 #include "services/session_manager.hpp" // Session manager header
-#include <csignal>                      // for signal processing
+#include <chrono>
+#include <csignal> // for signal processing
+#include <fstream> // for write error in error.log
 #include <httplib.h>
+#include <iomanip>
 #include <iostream>
+#include <random>
+#include <sstream>
 
 // to allow the signal handler function to access the server object
 httplib::Server *global_svr = nullptr;
@@ -35,6 +40,87 @@ std::string getCookieValue(const std::string &cookie_header, const std::string &
     return cookie_header.substr(start, end - start);
 }
 
+// Generate unique ID for error tracking
+std::string generateErrorTrackingId() {
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+
+    std::uniform_int_distribution<> dis(0, 15);
+    std::stringstream ss;
+
+    ss << "ERR-";
+    for (int i = 0; i < 6; i++) {
+        ss << std::hex << dis(gen);
+    }
+
+    return ss.str();
+}
+
+// Generate formatted string for current time
+std::string getCurrentTimeString() {
+    auto now = std::chrono::system_clock::now();
+    auto time_t_now = std::chrono::system_clock::to_time_t(now);
+
+    std::tm tm_now;
+
+#if defined(_MSC_VER)
+    localtime_s(&tm_now, &time_t_now); // Use safe function for MSVC compiler
+#else
+    localtime_r(&time_t_now, &tm_now); // Use POSIX standard function
+#endif
+
+    std::stringstream ss;
+    ss << std::put_time(&tm_now, "%Y-%m-%d %H:%M:%S");
+    return ss.str();
+}
+
+// Write error log to both console and log file(error.log)
+void logErrorToConsoleAndFile(const std::string &tracking_id, int status, const std::string &path, const std::string &method, const std::string &details) {
+    std::string time_str = getCurrentTimeString();
+
+    std::stringstream log_ss;
+    log_ss << "[" << time_str << "][" << tracking_id << "] Status: " << status
+           << " | Method: " << method << " | Path: " << path
+           << " | Details: " << details << "\n";
+    std::string log_msg = log_ss.str();
+
+    // Print error log to console standard error
+    std::cerr << log_msg;
+
+    std::ofstream log_file("error.log", std::ios::app);
+
+    if (log_file.is_open()) {
+        log_file << log_msg;
+        log_file.close();
+    } else {
+        std::cerr << "[Warning] Failed to open error.log for writing.\n";
+    }
+}
+
+// Read file and convert to string
+std::string readFileToString(const std::string &file_path) {
+    std::ifstream file(file_path);
+
+    if (!file.is_open())
+        return "";
+
+    std::stringstream ss;
+    ss << file.rdbuf();
+    return ss.str();
+}
+
+// Replace placeholders in string with dynamic values
+std::string replacePlaceholder(std::string str, const std::string &placeholder, const std::string &value) {
+    size_t pos = str.find(placeholder);
+
+    // if fine that placeholder
+    while (pos != std::string::npos) {
+        str.replace(pos, placeholder.length(), value);
+        pos = str.find(placeholder, pos + value.length());
+    }
+    return str;
+}
+
 int main() {
     // Initialize HTTPS server by setting paths to self-signed certificate and private key files (/certs/cert.pem&key.pem)
     httplib::SSLServer svr("./certs/cert.pem", "./certs/key.pem");
@@ -50,6 +136,69 @@ int main() {
                              {"X-Content-Type-Options", "nosniff"},
                              {"X-Frame-Options", "DENY"},
                              {"X-XSS-Protection", "1; mode=block"}});
+
+    // Global error handler
+    svr.set_error_handler([](const httplib::Request &req, httplib::Response &res) {
+        std::string tracking_id = generateErrorTrackingId();
+
+        // Set detailed error description for internal logging
+        std::string error_details = "HTTP Client Error";
+        if (res.status == 404) {
+            error_details = "Resource not found on path: " + req.path;
+        } else if (res.status == 403) {
+            error_details = "Access Denied / Forbidden";
+        } else if (res.status == 500) {
+            error_details = "Internal Server Error";
+        }
+
+        // Dual loggin to console and file(error.log)
+        logErrorToConsoleAndFile(tracking_id, res.status, req.path, req.method, error_details);
+
+        // Check if it is an API request
+        // If api, return safe JSON response
+        bool is_api_request = req.path.rfind("/api", 0) == 0;
+
+        if (is_api_request) {
+            std::string json_res = R"({"status":"error", "message":"An unexpected error occurred.", "tracking_id":")" + tracking_id + R"("})";
+            if (res.status == 404) {
+                json_res = R"({"status":"error", "message":"Resource not found", "tracking_id":")" + tracking_id + R"("})";
+            } else if (res.status == 403) {
+                json_res = R"({"status":"error", "message":"Access forbidden", "tracking_id":")" + tracking_id + R"("})";
+            } else if (res.status == 500) {
+                json_res = R"({"status":"error", "message":"Internal server error", "tracking_id":")" + tracking_id + R"("})";
+            }
+            res.set_content(json_res, "application/json; charset=utf-8");
+        } else {
+            // Load template error HTML
+            std::string html = readFileToString("./public/error.html");
+
+            // If faile to load file, fallback message
+            if (html.empty()) {
+                res.set_content("An error occurred. Tracking ID: " + tracking_id, "text/plain; charset=utf-8");
+                return;
+            }
+
+            std::string title = "An Error Occurred";
+            std::string desc = "An unexpected error occured while processing your request.";
+
+            if (res.status == 404) {
+                title = "Page Not Found (404)";
+                desc = "The requested page does not exist or has been moved.";
+            } else if (res.status == 403) {
+                title = "Access Denied (403)";
+                desc = "You do not have permission to access this resource.";
+            } else if (res.status == 500) {
+                title = "Internal Server Error (500)";
+                desc = "An internal error occurred on the server. Please try again later.";
+            }
+
+            // Replacement placeholder
+            html = replacePlaceholder(html, "{{TITLE}}", title);
+            html = replacePlaceholder(html, "{{DESCRIPTION}}", desc);
+            html = replacePlaceholder(html, "{{TRACKING_ID}}", tracking_id);
+            res.set_content(html, "text/html; charset=utf-8");
+        }
+    });
 
     // Receive SIGINT(Ctrl+C), run `handle_signal` function
     std::signal(SIGINT, handle_signal);

@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>{{TITLE}}</title>
+    </head>
+    <body
+        style="
+            font-family: sans-serif;
+            padding: 40px;
+            background-color: #f8f9fa;
+            color: #212529;
+        "
+    >
+        <!-- 기존 Notice 컨테이너 및 버튼 스타일 계승 (Inheriting existing Notice container and button styles) -->
+        <div
+            style="
+                max-width: 500px;
+                margin: 40px auto;
+                padding: 30px;
+                border: 1px solid #f8d7da;
+                background-color: #fff9fa;
+                border-radius: 4px;
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            "
+        >
+            <h2 style="color: #d63384; margin-top: 0">{{TITLE}}</h2>
+            <p style="font-size: 1rem; line-height: 1.6; color: #212529">
+                {{DESCRIPTION}}
+            </p>
+
+            <!-- 고정폭 폰트와 옅은 붉은색 테두리 적용 (Consolas font and light-red border applied) -->
+            <div style="margin: 25px 0">
+                <span style="font-weight: bold; color: #212529"
+                    >Error Tracking ID:</span
+                >
+                <code
+                    style="
+                        font-family: Consolas, monospace;
+                        background-color: #ffeef0;
+                        color: #d63384;
+                        padding: 4px 8px;
+                        border-radius: 4px;
+                        border: 1px solid #f8d7da;
+                        font-size: 1rem;
+                        margin-left: 5px;
+                    "
+                    >{{TRACKING_ID}}</code
+                >
+            </div>
+
+            <br />
+            <!-- 기존 Admin 버튼 디자인을 복사한 홈 버튼 (Home button copying existing Admin button design) -->
+            <a
+                href="/index.html"
+                style="
+                    display: inline-block;
+                    background-color: #212529;
+                    color: white;
+                    padding: 8px 16px;
+                    text-decoration: none;
+                    border-radius: 4px;
+                    font-weight: bold;
+                    font-size: 0.9rem;
+                "
+                >Back to Home</a
+            >
+        </div>
+    </body>
+</html>

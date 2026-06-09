@@ -36,3 +36,5 @@ compile_commands.json
 
 # Local editor helper
 .clangd
+
+.log
