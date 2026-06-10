@@ -1,29 +1,52 @@
 #pragma once
 
-#include <string>
-#include <random>
-#include <sstream>
+#include <cctype>
 #include <chrono>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
-#include <fstream>
+#include <random>
+#include <sstream>
+#include <string>
+#include <string_view>
 
 // Helper for cookie parsing
 inline std::string getCookieValue(const std::string &cookie_header, const std::string &key) {
-    if (cookie_header.empty())
-        return "";
-    std::string prefix = key + "=";
-    size_t start = cookie_header.find(prefix);
-    if (start == std::string::npos)
+    // Return empty string if header or key is empty
+    if (cookie_header.empty() || key.empty())
         return "";
 
-    start += prefix.length();
-    size_t end = cookie_header.find(";", start);
+    // Define the cookie prefix to search for
+    std::string target_prefix = key + "=";
+    std::string_view header_view(cookie_header);
 
-    if (end == std::string::npos) {
-        return cookie_header.substr(start);
+    size_t pos = 0;
+    while (pos < header_view.length()) {
+        // 다음 세미콜론 구분자 위치 검색 (Search for the next semicolon separator position)
+        size_t next_semicolon = header_view.find(';', pos);
+        std::string_view pair = (next_semicolon == std::string_view::npos)
+                                    ? header_view.substr(pos)
+                                    : header_view.substr(pos, next_semicolon - pos);
+
+        // 앞쪽 공백 제거 (Trim leading whitespace)
+        while (!pair.empty() && std::isspace(static_cast<unsigned char>(pair.front()))) {
+            pair.remove_prefix(1);
+        }
+        // 뒤쪽 공백 제거 (Trim trailing whitespace)
+        while (!pair.empty() && std::isspace(static_cast<unsigned char>(pair.back()))) {
+            pair.remove_suffix(1);
+        }
+        // 개별 쿠키가 정확히 대상 키로 시작하는지 검증 (Verify if the individual cookie starts exactly with the target key)
+        if (pair.rfind(target_prefix, 0) == 0) {
+            return std::string(pair.substr(target_prefix.length()));
+        }
+        // 다음 세그먼트로 이동 (Move to the next segment)
+        if (next_semicolon == std::string_view::npos) {
+            break;
+        }
+        pos = next_semicolon + 1;
     }
-    return cookie_header.substr(start, end - start);
+    return "";
 }
 
 // Generate unique ID for error tracking

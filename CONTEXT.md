@@ -42,6 +42,7 @@
 | **Local Changes** | `src/*`, `CMakeLists.txt` | **Security (RateLimit)** | 자동화 무차별 대입 공격(Brute Force) 방어를 위해 ID 기반의 로그인 시도 차단 정책(`LoginLimiter`) 도입 및 `AuthController` / `main.cpp` 연동 |
 | **Local Changes** | `src/*`, `public/js/*` | **Security (CSRF)** | 동적 세션 토큰 방식의 Anti-CSRF 방어를 도입하여 세션 정보 반환(`/api/me`) 시 토큰을 발급하고, 로그아웃(`/logout`) POST 요청 시 헤더 검증 수행 |
 | **Local Changes** | `src/*`, `public/error.html` | **Security (ErrorPage)** | 상세 에러 정보 유출 방지를 위한 무작위 Error Tracking ID 매핑, 외부 HTML 템플릿 연동, API(/api/*) 경로 JSON 응답 및 이중 로그(콘솔/파일) 기록 적용 |
+| **Local Changes** | [helpers.hpp](file:///c:/Projects/Bartimaeus_app/src/helpers.hpp), [auth_controller.hpp](file:///c:/Projects/Bartimaeus_app/src/controllers/auth_controller.hpp) | **Security (Cookie)** | 쿠키 키 이름 부분 일치 우회 방지를 위해 `;` 구분자 기반 분할 및 공백 trim을 적용한 안전한 쿠키 파싱 구현 및 중복 코드 리팩토링 |
 
 
 ---

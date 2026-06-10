@@ -1,5 +1,6 @@
 // A controller that receives HTTP request parameters and formats the response.
 #pragma once
+#include "../helpers.hpp"
 #include "../services/auth_service.hpp"
 #include "../services/login_limiter.hpp"
 #include "../services/session_manager.hpp"
@@ -11,24 +12,6 @@ private:
     AuthService &auth_service;
     SessionManager &session_manager;
     LoginLimiter &login_limiter;
-
-    // Helper function to extract the value of a specific key from the cookie header
-    std::string getCookieValue(const std::string &cookie_header, const std::string &key) {
-        if (cookie_header.empty())
-            return "";
-
-        std::string prefix = key + "=";
-        size_t start = cookie_header.find(prefix);
-        if (start == std::string::npos)
-            return "";
-
-        start += prefix.length();
-        size_t end = cookie_header.find(";", start);
-        if (end == std::string::npos) {
-            return cookie_header.substr(start);
-        }
-        return cookie_header.substr(start, end - start);
-    }
 
     // Escape special characters in a JSON string
     std::string escapeJson(const std::string &input) {

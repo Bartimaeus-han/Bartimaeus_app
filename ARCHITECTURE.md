@@ -75,6 +75,10 @@
   3. **하이브리드 분기**: 클라이언트 요청 경로가 API(`/api/*`)인지 일반 정적 페이지인지 판별하여, API의 경우 표준화된 JSON 형식으로 에러 응답을 반환하고, 일반 웹 페이지의 경우 `public/error.html` 템플릿의 플레이스홀더(`{{TITLE}}`, `{{DESCRIPTION}}`, `{{TRACKING_ID}}`)를 C++단에서 치환하여 반환합니다.
 * **목적**: 공격자가 에러 메시지 분석을 통해 시스템 내부 정보(OS, 웹 서버 세부 버전, DB 구조 등)를 유추(Information Leakage)하는 공격을 차단하면서도, 내부 관리자가 운영 중 발생한 문제를 발급된 Tracking ID를 통해 디버깅할 수 있는 추적성을 완벽하게 구축합니다.
 
+### 3.7 안전한 쿠키 파싱
+* **구현 방식**: [helpers.hpp](file:///c:/Projects/Bartimaeus_app/src/helpers.hpp)에 작성된 `getCookieValue` 함수를 통해 쿠키를 안전하게 처리합니다. 수신된 쿠키 헤더를 세미콜론 `;` 기준으로 분할(split)하고, 각 조각의 공백을 제거(trim)한 다음, 타겟 접두사(`key=`)로 완벽하게 시작하는지 대조하여 값을 가져옵니다.
+* **목적**: 쿠키 이름의 일부만 겹치는 더미 쿠키(예: `bad_auth_session=`)를 이용해 정상 사용자의 세션 파싱을 방해하는 DoS 및 변조 세션 강제 주입(Session Fixation 연계) 등의 보안 우회 경로를 원천 방지합니다.
+
 ---
 
 ## 4. 향후 보안 및 아키텍처 개선 과제 (Future Improvements)
