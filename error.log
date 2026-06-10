@@ -1,4 +1,0 @@
-[2026-06-09 23:33:32][ERR-db2321] Status: 404 | Method: GET | Path: /favicon.ico | Details: Resource not found on path: /favicon.ico
-[2026-06-09 23:33:50][ERR-1e9534] Status: 404 | Method: GET | Path: /doesnotexist | Details: Resource not found on path: /doesnotexist
-[2026-06-09 23:34:05][ERR-9c3f3a] Status: 404 | Method: GET | Path: /api/doesnotexist | Details: Resource not found on path: /api/doesnotexist
-[2026-06-09 23:34:15][ERR-cd768d] Status: 500 | Method: GET | Path: /api/error | Details: Internal Server Error
