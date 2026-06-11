@@ -13,31 +13,6 @@ private:
     SessionManager &session_manager;
     LoginLimiter &login_limiter;
 
-    // Escape special characters in a JSON string
-    std::string escapeJson(const std::string &input) {
-        std::string output;
-        for (char c : input) {
-            if (c == '"') {
-                output += "\\\"";
-            } else if (c == '\\') {
-                output += "\\\\";
-            } else if (c == '\b') {
-                output += "\\b";
-            } else if (c == '\f') {
-                output += "\\f";
-            } else if (c == '\n') {
-                output += "\\n";
-            } else if (c == '\r') {
-                output += "\\r";
-            } else if (c == '\t') {
-                output += "\\t";
-            } else {
-                output += c;
-            }
-        }
-        return output;
-    }
-
     // Validate username: only allow alphanumeric, underscore, hyphen (3~32 chars)
     bool isValidUsername(const std::string &username) {
         if (username.length() < 3 || username.length() > 32)

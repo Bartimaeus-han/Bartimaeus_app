@@ -22,25 +22,25 @@ inline std::string getCookieValue(const std::string &cookie_header, const std::s
 
     size_t pos = 0;
     while (pos < header_view.length()) {
-        // 다음 세미콜론 구분자 위치 검색 (Search for the next semicolon separator position)
+        // Search for the next semicolon separator position
         size_t next_semicolon = header_view.find(';', pos);
         std::string_view pair = (next_semicolon == std::string_view::npos)
                                     ? header_view.substr(pos)
                                     : header_view.substr(pos, next_semicolon - pos);
 
-        // 앞쪽 공백 제거 (Trim leading whitespace)
+        // Trim leading whitespace
         while (!pair.empty() && std::isspace(static_cast<unsigned char>(pair.front()))) {
             pair.remove_prefix(1);
         }
-        // 뒤쪽 공백 제거 (Trim trailing whitespace)
+        // Trim trailing whitespace
         while (!pair.empty() && std::isspace(static_cast<unsigned char>(pair.back()))) {
             pair.remove_suffix(1);
         }
-        // 개별 쿠키가 정확히 대상 키로 시작하는지 검증 (Verify if the individual cookie starts exactly with the target key)
+        // Verify if the individual cookie starts exactly with the target key
         if (pair.rfind(target_prefix, 0) == 0) {
             return std::string(pair.substr(target_prefix.length()));
         }
-        // 다음 세그먼트로 이동 (Move to the next segment)
+        // Move to the next segment
         if (next_semicolon == std::string_view::npos) {
             break;
         }
@@ -128,4 +128,28 @@ inline std::string replacePlaceholder(std::string str, const std::string &placeh
         pos = str.find(placeholder, pos + value.length());
     }
     return str;
+}
+
+// Escape special characters in a JSON string
+inline std::string escapeJson(const std::string &input) {
+    std::string output;
+    for (char c : input) {
+        if (c == '"')
+            output += "\\\"";
+        else if (c == '\\')
+            output += "\\\\";
+        else if (c == '\b')
+            output += "\\b";
+        else if (c == '\f')
+            output += "\\f";
+        else if (c == '\n')
+            output += "\\n";
+        else if (c == '\r')
+            output += "\\r";
+        else if (c == '\t')
+            output += "\\t";
+        else
+            output += c;
+    }
+    return output;
 }

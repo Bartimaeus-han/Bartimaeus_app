@@ -49,7 +49,9 @@ find_package(OpenSSL REQUIRED)
 # In CMake, `SecureWebServer` called **Target**
 add_executable(SecureWebServer ${SOURCES}
     src/services/session_manager.hpp
-    src/services/login_limiter.hpp)
+    src/services/login_limiter.hpp
+    src/services/board_service.hpp
+    src/controllers/board_controller.hpp)
 
 # Link OpenSSL and cpp-httplib libraries
 target_link_libraries(SecureWebServer PRIVATE httplib::httplib OpenSSL::SSL OpenSSL::Crypto)

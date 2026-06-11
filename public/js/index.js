@@ -23,6 +23,14 @@ fetch("/api/me")
                 });
             }
 
+            // Bind click event listener for board navigation button
+            const boardBtn = document.getElementById("boardBtn");
+            if (boardBtn) {
+                boardBtn.addEventListener("click", function () {
+                    window.location.href = "/board.html";
+                });
+            }
+
             // Extract notice from URL parameter and binding
             const urlParams = new URLSearchParams(window.location.search);
             const notice = urlParams.get("notice");

@@ -1,9 +1,11 @@
 #include "controllers/auth_controller.hpp"
+#include "controllers/board_controller.hpp"
+#include "helpers.hpp" // Helper functions
 #include "services/auth_service.hpp"
+#include "services/board_service.hpp"
 #include "services/login_limiter.hpp"   // Login limiter header
 #include "services/session_manager.hpp" // Session manager header
-#include "helpers.hpp"                  // Helper functions
-#include <csignal> // for signal processing
+#include <csignal>                      // for signal processing
 #include <httplib.h>
 #include <iostream>
 
@@ -106,6 +108,9 @@ int main() {
 
     AuthController auth_controller(auth_service, session_manager, login_limiter);
 
+    BoardService board_service;                                       // Create board service instance
+    BoardController board_controller(board_service, session_manager); // Cretae board controller instance
+
     svr.set_pre_routing_handler([&session_manager](const httplib::Request &req, httplib::Response &res) {
         if (req.path == "/" || req.path == "/index.html") {
             bool is_logged_in = false;
@@ -165,7 +170,28 @@ int main() {
         auth_controller.handleLogout(req, res);
     });
 
-    std::cout << "========================================================" << std::endl;
+    // Write a post API route
+    svr.Post("/api/post", [&board_controller](const httplib::Request &req, httplib::Response &res) {
+        board_controller.handleCreatePost(req, res);
+    });
+
+    // Retrieve all posts API route
+    svr.Get("/api/posts", [&board_controller](const httplib::Request &req, httplib::Response &res) {
+        board_controller.handleGetPosts(req, res);
+    });
+
+    // Retrieve a specific post detais API route
+    svr.Get("/api/post", [&board_controller](const httplib::Request &req, httplib::Response &res) {
+        board_controller.handleGetPostDetail(req, res);
+    });
+
+    // Delete a post API route
+    svr.Delete("/api/post", [&board_controller](const httplib::Request &req, httplib::Response &res) {
+        board_controller.handleDeletePost(req, res);
+    });
+
+    std::cout
+        << "========================================================" << std::endl;
     std::cout << " Secure Web Server is starting on https://localhost:9090" << std::endl;
     std::cout << "========================================================" << std::endl;
 

@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8" />
+    <title>Community Board</title>
+</head>
+<body>
+    <h2>Community Board</h2>
+    <button id="backBtn">Back to Dashboard</button>
+    <hr />
+
+    <!-- Create a New Post -->
+    <h3>Create a New Post</h3>
+    Title: <input type="text" id="postTitle" size="40" placeholder="Enter title" /><br /><br />
+    Content:<br />
+    <textarea id="postContent" rows="6" cols="50" placeholder="Enter content"></textarea><br /><br />
+    <button id="submitPostBtn">Submit Post</button>
+    <hr />
+
+    <!-- Post List -->
+    <h3>Post List</h3>
+    <table border="1" id="postTable">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Title</th>
+                <th>Author</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody id="postTableBody">
+            <!-- Dynamic content -->
+        </tbody>
+    </table>
+    <div id="errorMsg" style="color: red; margin-top: 10px;"></div>
+
+    <!-- Post Detail Modal Overlay -->
+    <div id="modalOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 999;"></div>
+    <div id="detailModal" style="display: none; position: fixed; top: 20%; left: 25%; width: 50%; background: white; border: 2px solid #333; padding: 20px; z-index: 1000;">
+        <h3 id="modalTitle" style="margin-top: 0;">Post Detail</h3>
+        <p><b>Author:</b> <span id="modalAuthor"></span></p>
+        <hr />
+        <div id="modalContent" style="white-space: pre-wrap; background: #f8f8f8; padding: 10px; border: 1px solid #ccc; max-height: 200px; overflow-y: auto; word-break: break-all;"></div>
+        <br />
+        <button id="closeModalBtn">Close</button>
+    </div>
+
+    <script src="/js/board.js"></script>
+</body>
+</html>
