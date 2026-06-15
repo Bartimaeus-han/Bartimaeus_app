@@ -3,6 +3,7 @@
 #include "../services/board_service.hpp"
 #include "../services/session_manager.hpp"
 #include <httplib.h>
+#include <iostream>
 #include <string>
 
 class BoardController {
@@ -47,7 +48,8 @@ public:
 
         // Create Post -> Insert DB
         if (boardService.writePost(title, content, username)) {
-            res.status = 201; // OK
+            std::cout << "[Board Success] User '" << username << "' created a post: '" << title << "'" << std::endl; // Log if writing is success.
+            res.status = 201;                                                                                        // OK
             res.set_content(R"({"status":"success", "message":"Post created successfully"})", "application/json");
         } else {
             res.status = 500; // Internal Server Error
@@ -68,6 +70,8 @@ public:
         }
 
         std::vector<Post> posts = boardService.getAllPosts();
+        // Log to retrieve all posts successfully
+        std::cout << "[Board Success] User '" << username << "' retrieved all posts (" << posts.size() << " posts found)." << std::endl;
 
         std::string json = "[";
 
@@ -117,6 +121,9 @@ public:
             return;
         }
 
+        // Log to retrieve a specific post
+        std::cout << "[Board Success] User '" << username << "' read post ID: " << id << " ('" << post.title << "')" << std::endl;
+
         std::string json = "{\"id\":" + std::to_string(post.id) +
                            ", \"title\":\"" + escapeJson(post.title) + "\"" +
                            ", \"content\":\"" + escapeJson(post.content) + "\"" +
@@ -158,9 +165,25 @@ public:
 
         int id = std::stoi(id_str);
 
-        // In this point has IDOR vulnerability. Because don't check that id's author is same person who request to delete
-        // only check if session is valid
+        // Check post is really exist
+        Post post = boardService.getPostById(id);
+
+        if (post.id == 0) {
+            res.status = 404; // Page Not Found
+            res.set_content(R"({"status":"error", "message":"Post not found"})", "application/json");
+            return;
+        }
+
+        // Authorization.  username == post's author??
+        if (post.author != username) {
+            res.status = 403; // Forbidden
+            res.set_content(R"({"status":"error", "message":"You are not authorized to delete this post"})", "application/json");
+            return;
+        }
+
         if (boardService.deletePost(id)) {
+            // Log to delete post successfully
+            std::cout << "[Board Success] User '" << username << "' deleted post ID: " << id << std::endl;
             res.status = 200; // OK
             res.set_content(R"({"status":"success", "message":"Post deleted successfully"})", "application/json");
         } else {
