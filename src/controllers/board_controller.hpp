@@ -1,7 +1,7 @@
 #pragma once
 #include "../helpers.hpp"
+#include "../middleware.hpp" // For using session information structs (Middleware header)
 #include "../services/board_service.hpp"
-#include "../services/session_manager.hpp"
 #include <httplib.h>
 #include <iostream>
 #include <string>
@@ -9,32 +9,14 @@
 class BoardController {
 private:
     BoardService &boardService;
-    SessionManager &sessionManager;
 
 public:
     // Dependency Injection
-    BoardController(BoardService &service, SessionManager &manager) : boardService(service), sessionManager(manager) {}
+    explicit BoardController(BoardService &service) : boardService(service) {}
 
     // Handle request to write a new post
-    void handleCreatePost(const httplib::Request &req, httplib::Response &res) {
-        std::string cookie_header = req.get_header_value("Cookie");
-        std::string session_id = getCookieValue(cookie_header, "auth_session");
-        std::string username = sessionManager.validateSession(session_id);
-
-        // Restrict access for unathenticated users
-        if (username.empty()) {
-            res.status = 401;
-            res.set_content(R"({"status":"error", "message":"Unauthorized"})", "application/json");
-            return;
-        }
-
-        // Perform X-CSRF-TOKEN header validation => CSRF Attack
-        std::string csrf_token_header = req.get_header_value("X-CSRF-TOKEN");
-        if (!sessionManager.validateCsrfToekn(session_id, csrf_token_header)) {
-            res.status = 403; // Forbidden
-            res.set_content(R"({"status":"error", "message":"Invalid CSRF token"})", "application/json");
-            return;
-        }
+    void handleCreatePost(const httplib::Request &req, httplib::Response &res, const UserContext &ctx) {
+        std::string username = ctx.username;
 
         // Parse title and content from request body
         auto title = req.get_param_value("title");
@@ -58,16 +40,8 @@ public:
     }
 
     // 'API' to retrieve post summary list
-    void handleGetPosts(const httplib::Request &req, httplib::Response &res) {
-        std::string cookie_header = req.get_header_value("Cookie");
-        std::string session_id = getCookieValue(cookie_header, "auth_session");
-        std::string username = sessionManager.validateSession(session_id);
-
-        if (username.empty()) {
-            res.status = 401; // Unauthorized
-            res.set_content(R"({"status":"error", "message":"Unauthorized"})", "application/json");
-            return;
-        }
+    void handleGetPosts(const httplib::Request &req, httplib::Response &res, const UserContext &ctx) {
+        std::string username = ctx.username;
 
         std::vector<Post> posts = boardService.getAllPosts();
         // Log to retrieve all posts successfully
@@ -92,17 +66,8 @@ public:
     }
 
     // API to retrieve a specific post 'details'
-    void handleGetPostDetail(const httplib::Request &req, httplib::Response &res) {
-        std::string cookie_header = req.get_header_value("Cookie");
-        std::string session_id = getCookieValue(cookie_header, "auth_session");
-        std::string username = sessionManager.validateSession(session_id);
-
-        // username(ID) check
-        if (username.empty()) {
-            res.status = 401; // Unauthorized
-            res.set_content(R"({"status":"error", "message":"Unauthorized"})", "application/json");
-            return;
-        }
+    void handleGetPostDetail(const httplib::Request &req, httplib::Response &res, const UserContext &ctx) {
+        std::string username = ctx.username;
 
         // Post's ID check
         std::string id_str = req.get_param_value("id");
@@ -136,25 +101,8 @@ public:
     // API to handle post deletion request
     // Defense CSRF to check CSRF token
     // IDOR vulnerability - don't check that delete person and author is same user
-    void handleDeletePost(const httplib::Request &req, httplib::Response &res) {
-        std::string cookie_header = req.get_header_value("Cookie");
-        std::string session_id = getCookieValue(cookie_header, "auth_session");
-        std::string username = sessionManager.validateSession(session_id);
-
-        // username(ID) check
-        if (username.empty()) {
-            res.status = 401; // Unauthorized
-            res.set_content(R"({"status":"error", "message":"Unauthorized"})", "application/json");
-            return;
-        }
-
-        // Validate CSRF token on delete method
-        std::string csrf_token_header = req.get_header_value("X-CSRF-TOKEN");
-        if (!sessionManager.validateCsrfToekn(session_id, csrf_token_header)) {
-            res.status = 403; // Forbidden
-            res.set_content(R"({"status":"error", "message":"Invalid CSRF token"})", "application/json");
-            return;
-        }
+    void handleDeletePost(const httplib::Request &req, httplib::Response &res, const UserContext &ctx) {
+        std::string username = ctx.username;
 
         auto id_str = req.get_param_value("id");
         if (id_str.empty()) {
