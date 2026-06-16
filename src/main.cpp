@@ -174,6 +174,9 @@ int main() {
     // ===== Board related API =====
     // csrf validation is used for POST, DELETE method requests only
 
+    // ===== Board related API =====
+    // csrf validation is used for POST, DELETE method requests only
+
     // Write a post API route
     svr.Post("/api/post", requireAuthAndCsrf(session_manager, [&board_controller](const httplib::Request &req, httplib::Response &res, const UserContext &ctx) {
                  board_controller.handleCreatePost(req, res, ctx);
