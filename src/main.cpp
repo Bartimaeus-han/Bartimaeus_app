@@ -156,20 +156,20 @@ int main() {
         auth_controller.handleLogin(req, res);
     });
 
-    // Member inquiry (GET /api/users)
-    svr.Get("/api/users", [&auth_controller](const httplib::Request &req, httplib::Response &res) {
-        auth_controller.handleGetUsers(req, res);
-    });
+    // Member inquiry (GET /api/users). Only access by admin
+    svr.Get("/api/users", requireAdmin(session_manager, auth_service, [&auth_controller](const httplib::Request &req, httplib::Response &res, const UserContext &ctx) {
+                auth_controller.handleGetUsers(req, res, ctx);
+            }));
 
     // Current session inquiry API route
-    svr.Get("/api/me", [&auth_controller](const httplib::Request &req, httplib::Response &res) {
-        auth_controller.handleGetMe(req, res);
-    });
+    svr.Get("/api/me", requireAuth(session_manager, [&auth_controller](const httplib::Request &req, httplib::Response &res, const UserContext &ctx) {
+                auth_controller.handleGetMe(req, res, ctx);
+            }));
 
-    // Logout API route
-    svr.Post("/logout", [&auth_controller](const httplib::Request &req, httplib::Response &res) {
-        auth_controller.handleLogout(req, res);
-    });
+    // Logout API route (requireAuthAndCsrf middleware)
+    svr.Post("/logout", requireAuthAndCsrf(session_manager, [&auth_controller](const httplib::Request &req, httplib::Response &res, const UserContext &ctx) {
+                 auth_controller.handleLogout(req, res, ctx);
+             }));
 
     // ===== Board related API =====
     // csrf validation is used for POST, DELETE method requests only

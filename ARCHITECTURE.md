@@ -79,11 +79,15 @@
 * **구현 방식**: [helpers.hpp](file:///c:/Projects/Bartimaeus_app/src/helpers.hpp)에 작성된 `getCookieValue` 함수를 통해 쿠키를 안전하게 처리합니다. 수신된 쿠키 헤더를 세미콜론 `;` 기준으로 분할(split)하고, 각 조각의 공백을 제거(trim)한 다음, 타겟 접두사(`key=`)로 완벽하게 시작하는지 대조하여 값을 가져옵니다.
 * **목적**: 쿠키 이름의 일부만 겹치는 더미 쿠키(예: `bad_auth_session=`)를 이용해 정상 사용자의 세션 파싱을 방해하는 DoS 및 변조 세션 강제 주입(Session Fixation 연계) 등의 보안 우회 경로를 원천 방지합니다.
 
+### 3.8 공통 보안 미들웨어 인터셉터
+* **구현 방식**: C++ 함수형 데코레이터 패턴을 기반으로 [middleware.hpp](file:///c:/Projects/Bartimaeus_app/src/middleware.hpp)에 `requireAuth`, `requireAuthAndCsrf`, `requireAdmin` 필터를 구축하고 [main.cpp](file:///c:/Projects/Bartimaeus_app/src/main.cpp) 라우팅 선언부에 체이닝 형태로 연동했습니다. 인증에 성공하면 사용자 정보가 담긴 `UserContext`를 컨트롤러에 안전하게 파라미터로 주입합니다. 특히 CSRF 검증 실패 시에는 **서버 세션을 파괴하고 브라우저 쿠키를 만료(Max-Age=0)**시키는 강력한 방어 메커니즘을 적용했습니다.
+* **목적**: 중복되는 보안 로직(세션 체크, CSRF 검사, 역할 인가 등)을 공통 횡단 관심사(Cross-cutting Concerns)로 묶어 컨트롤러 결합도를 낮추고, 신규 개발 시 발생할 수 있는 보안 누락 실수를 방지하여 설계 결함을 근본적으로 예방합니다.
+
 ---
 
 ## 4. 향후 보안 및 아키텍처 개선 과제 (Future Improvements)
 
-* **설정 기반 보안 인터셉터 (Configuration-based Security Interceptor)**:
-  * 현재 `main.cpp`에서 개별 경로별로 작성된 인증 분기를, Enum(`AuthLevel`) 및 정책 맵(`PAGE_AUTH_POLICIES`) 기반의 일관된 미들웨어 인터셉터 구조로 리팩토링할 예정 (정적 파일 및 API 예외 처리 기능 포함).
+* **비로그인 사용자 보호 기능 보완**:
+  * `/login` 및 `/signup` 엔드포인트에 대해 무차별 대입 공격(Brute Force) 제한 강화 및 패스워드 정책 고도화.
 
 

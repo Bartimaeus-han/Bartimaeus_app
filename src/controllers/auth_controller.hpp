@@ -1,6 +1,7 @@
 // A controller that receives HTTP request parameters and formats the response.
 #pragma once
 #include "../helpers.hpp"
+#include "../middleware.hpp" // For using session info structure
 #include "../services/auth_service.hpp"
 #include "../services/login_limiter.hpp"
 #include "../services/session_manager.hpp"
@@ -102,24 +103,7 @@ public:
     }
 
     // Admin API handler for retrieving the list of registered users as JSON
-    void handleGetUsers(const httplib::Request &req, httplib::Response &res) {
-        // Extract cookie in the request header
-        std::string cookie = req.get_header_value("Cookie");
-
-        // Parse session ID from cookie header
-        std::string session_id = getCookieValue(cookie, "auth_session");
-
-        // Validate session via session manager and get logged-in username
-        std::string username = session_manager.validateSession(session_id);
-
-        // Get actual role for the user
-        std::string role = auth_service.getUserRole(username);
-
-        if (role != "ADMIN") {
-            res.status = 403; // Forbidden
-            res.set_content(R"({"status":"error", "message":"Access denied, Administrator privilege required."})", "application/json");
-            return;
-        }
+    void handleGetUsers(const httplib::Request &req, httplib::Response &res, const UserContext &ctx) {
 
         auto users = auth_service.getAllUsers();
         std::string json_result = "[";
@@ -138,21 +122,12 @@ public:
     }
 
     // Get currently logged-in user profile for frontend UI rendering
-    void handleGetMe(const httplib::Request &req, httplib::Response &res) {
-        std::string cookie_header = req.get_header_value("Cookie");
-        std::string session_id = getCookieValue(cookie_header, "auth_session");
-
-        std::string username = session_manager.validateSession(session_id);
-
-        if (username.empty()) {
-            res.status = 400;
-            res.set_content(R"({"status":"error", "message":"Unathorized"})", "application/json");
-            return;
-        }
+    void handleGetMe(const httplib::Request &req, httplib::Response &res, const UserContext &ctx) {
+        std::string username = ctx.username;
+        std::string session_id = ctx.session_id;
 
         std::string role = auth_service.getUserRole(username);
 
-        // Retrieve stored CSRF toekn from session manager
         std::string csrf_token = session_manager.getCsrfToken(session_id);
 
         res.status = 200;
@@ -165,19 +140,8 @@ public:
     }
 
     // User logout request handler
-    void handleLogout(const httplib::Request &req, httplib::Response &res) {
-        std::string cookie_header = req.get_header_value("Cookie");
-        std::string session_id = getCookieValue(cookie_header, "auth_session");
-
-        // Retrieve X-CSRF-Token value from the request header
-        std::string csrf_token_header = req.get_header_value("X-CSRF-TOKEN");
-
-        // Perform CSRF toekn validation
-        if (!session_manager.validateCsrfToekn(session_id, csrf_token_header)) {
-            res.status = 403; // Access Denied
-            res.set_content(R"({"status":"error", "message":"CSRF token validation failed"})", "application/json");
-            return;
-        }
+    void handleLogout(const httplib::Request &req, httplib::Response &res, const UserContext &ctx) {
+        std::string session_id = ctx.session_id;
 
         // Destroy session on the server-side session store if validation passes
         session_manager.destroySession(session_id);
