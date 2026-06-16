@@ -1,6 +1,7 @@
 #include "controllers/auth_controller.hpp"
 #include "controllers/board_controller.hpp"
-#include "helpers.hpp" // Helper functions
+#include "helpers.hpp"    // Helper functions
+#include "middleware.hpp" // middleware helper header
 #include "services/auth_service.hpp"
 #include "services/board_service.hpp"
 #include "services/login_limiter.hpp"   // Login limiter header
@@ -108,8 +109,8 @@ int main() {
 
     AuthController auth_controller(auth_service, session_manager, login_limiter);
 
-    BoardService board_service;                                       // Create board service instance
-    BoardController board_controller(board_service, session_manager); // Cretae board controller instance
+    BoardService board_service;                      // Create board service instance
+    BoardController board_controller(board_service); // Cretae board controller instance
 
     svr.set_pre_routing_handler([&session_manager](const httplib::Request &req, httplib::Response &res) {
         if (req.path == "/" || req.path == "/index.html") {
@@ -170,25 +171,28 @@ int main() {
         auth_controller.handleLogout(req, res);
     });
 
+    // ===== Board related API =====
+    // csrf validation is used for POST, DELETE method requests only
+
     // Write a post API route
-    svr.Post("/api/post", [&board_controller](const httplib::Request &req, httplib::Response &res) {
-        board_controller.handleCreatePost(req, res);
-    });
+    svr.Post("/api/post", requireAuthAndCsrf(session_manager, [&board_controller](const httplib::Request &req, httplib::Response &res, const UserContext &ctx) {
+                 board_controller.handleCreatePost(req, res, ctx);
+             }));
 
     // Retrieve all posts API route
-    svr.Get("/api/posts", [&board_controller](const httplib::Request &req, httplib::Response &res) {
-        board_controller.handleGetPosts(req, res);
-    });
+    svr.Get("/api/posts", requireAuth(session_manager, [&board_controller](const httplib::Request &req, httplib::Response &res, const UserContext &ctx) {
+                board_controller.handleGetPosts(req, res, ctx);
+            }));
 
     // Retrieve a specific post detais API route
-    svr.Get("/api/post", [&board_controller](const httplib::Request &req, httplib::Response &res) {
-        board_controller.handleGetPostDetail(req, res);
-    });
+    svr.Get("/api/post", requireAuth(session_manager, [&board_controller](const httplib::Request &req, httplib::Response &res, const UserContext &ctx) {
+                board_controller.handleGetPostDetail(req, res, ctx);
+            }));
 
     // Delete a post API route
-    svr.Delete("/api/post", [&board_controller](const httplib::Request &req, httplib::Response &res) {
-        board_controller.handleDeletePost(req, res);
-    });
+    svr.Delete("/api/post", requireAuthAndCsrf(session_manager, [&board_controller](const httplib::Request &req, httplib::Response &res, const UserContext &ctx) {
+                   board_controller.handleDeletePost(req, res, ctx);
+               }));
 
     std::cout
         << "========================================================" << std::endl;
