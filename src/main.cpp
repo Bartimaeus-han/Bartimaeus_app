@@ -104,13 +104,13 @@ int main() {
     std::signal(SIGINT, handle_signal);
 
     AuthService auth_service;
-    SessionManager session_manager;
-    LoginLimiter login_limiter;
+    SessionManager session_manager; // Create session manager instance
+    BoardService board_service;     // Create board service instance
+    LoginLimiter login_limiter;     // Create login limiter instance
 
     AuthController auth_controller(auth_service, session_manager, login_limiter);
 
-    BoardService board_service;                      // Create board service instance
-    BoardController board_controller(board_service); // Cretae board controller instance
+    BoardController board_controller(board_service, auth_service); // Cretae board controller instance
 
     svr.set_pre_routing_handler([&session_manager](const httplib::Request &req, httplib::Response &res) {
         if (req.path == "/" || req.path == "/index.html") {

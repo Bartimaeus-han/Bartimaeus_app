@@ -1,6 +1,7 @@
 #pragma once
 #include "../helpers.hpp"
-#include "../middleware.hpp" // For using session information structs (Middleware header)
+#include "../middleware.hpp"            // For using session information structs (Middleware header)
+#include "../services/auth_service.hpp" // Admin user can delete any post
 #include "../services/board_service.hpp"
 #include <httplib.h>
 #include <iostream>
@@ -9,10 +10,11 @@
 class BoardController {
 private:
     BoardService &boardService;
+    AuthService &authService;
 
 public:
     // Dependency Injection
-    explicit BoardController(BoardService &service) : boardService(service) {}
+    explicit BoardController(BoardService &service, AuthService &auth) : boardService(service), authService(auth) {}
 
     // Handle request to write a new post
     void handleCreatePost(const httplib::Request &req, httplib::Response &res, const UserContext &ctx) {
@@ -122,8 +124,10 @@ public:
             return;
         }
 
+        std::string role = authService.getUserRole(username);
+
         // Authorization.  username == post's author??
-        if (post.author != username) {
+        if (post.author != username && role != "ADMIN") {
             res.status = 403; // Forbidden
             res.set_content(R"({"status":"error", "message":"You are not authorized to delete this post"})", "application/json");
             return;
