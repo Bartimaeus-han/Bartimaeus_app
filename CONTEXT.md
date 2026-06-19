@@ -44,7 +44,7 @@
 | **Local Changes** | `src/*`, `public/error.html` | **Security (ErrorPage)** | 상세 에러 정보 유출 방지를 위한 무작위 Error Tracking ID 매핑, 외부 HTML 템플릿 연동, API(/api/*) 경로 JSON 응답 및 이중 로그(콘솔/파일) 기록 적용 |
 | **Local Changes** | [helpers.hpp](file:///c:/Projects/Bartimaeus_app/src/helpers.hpp), [auth_controller.hpp](file:///c:/Projects/Bartimaeus_app/src/controllers/auth_controller.hpp) | **Security (Cookie)** | 쿠키 키 이름 부분 일치 우회 방지를 위해 `;` 구분자 기반 분할 및 공백 trim을 적용한 안전한 쿠키 파싱 구현 및 중복 코드 리팩토링 |
 | **Local Changes** | `src/*`, `CMakeLists.txt` | **Refactor** | 중복되는 세션/CSRF 검증 코드를 공통 횡단 관심사로 통합하기 위해 C++ 함수형 스타일의 보안 미들웨어([middleware.hpp](file:///c:/Projects/Bartimaeus_app/src/middleware.hpp)) 도입 및 컨트롤러 핸들러 슬림화 리팩토링 수행 |
-
+| **Local Changes** | `src/*`, `public/js/*` | **Refactor (AdminDelete)** | 관리자가 다른 사용자의 글을 삭제할 수 있도록 권한 정책 변경(Option 1) 및 클라이언트 측 confirm() 삭제 재확인 로직 추가 |
 
 ---
 

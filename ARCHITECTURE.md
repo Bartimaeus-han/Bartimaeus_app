@@ -82,6 +82,11 @@
 ### 3.8 공통 보안 미들웨어 인터셉터
 * **구현 방식**: C++ 함수형 데코레이터 패턴을 기반으로 [middleware.hpp](file:///c:/Projects/Bartimaeus_app/src/middleware.hpp)에 `requireAuth`, `requireAuthAndCsrf`, `requireAdmin` 필터를 구축하고 [main.cpp](file:///c:/Projects/Bartimaeus_app/src/main.cpp) 라우팅 선언부에 체이닝 형태로 연동했습니다. 인증에 성공하면 사용자 정보가 담긴 `UserContext`를 컨트롤러에 안전하게 파라미터로 주입합니다. 특히 CSRF 검증 실패 시에는 **서버 세션을 파괴하고 브라우저 쿠키를 만료(Max-Age=0)**시키는 강력한 방어 메커니즘을 적용했습니다.
 * **목적**: 중복되는 보안 로직(세션 체크, CSRF 검사, 역할 인가 등)을 공통 횡단 관심사(Cross-cutting Concerns)로 묶어 컨트롤러 결합도를 낮추고, 신규 개발 시 발생할 수 있는 보안 누락 실수를 방지하여 설계 결함을 근본적으로 예방합니다.
+### 3.9 수평/수직적 권한 제어 및 IDOR 방어 (BOLA/IDOR & Authorization Control)
+* **구현 방식**: 
+  1. 게시글 삭제 등 민감한 리소스 제어 시, 요청자의 세션 사용자 ID(`username`)와 대상 리소스의 실제 작성자(`post.author`)가 일치하는지 철저하게 비교 검증합니다.
+  2. 추가적으로 수직적 권한 제어를 위해, 요청자의 역할이 관리자(`ADMIN`)인 경우(`role == "ADMIN"`)에는 작성자 일치 여부와 관계없이 게시글을 삭제할 수 있도록 비즈니스 규칙(Option 1)을 적용했습니다.
+* **목적**: 리소스 식별자(ID) 값만 임의로 바꾸어 타인의 리소스를 조작하는 수평적 권한 상승(IDOR/BOLA) 공격을 근본적으로 차단하며, 관리자는 정당한 상위 권한으로 게시판을 전체 관리할 수 있는 접근 통제(Access Control) 체계를 확보합니다.
 
 ---
 

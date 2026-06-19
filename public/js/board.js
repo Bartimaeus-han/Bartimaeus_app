@@ -1,4 +1,6 @@
 let csrfToken = "";
+let currentUser = ""; // current logged-in user's ID
+let currentUserRole = ""; // current logged-in user's role
 
 // Check session and acquire CSRF token on page load
 fetch("/api/me")
@@ -6,6 +8,9 @@ fetch("/api/me")
         const data = await res.json();
         if (res.ok && data.status === "success") {
             csrfToken = data.csrf_token;
+            currentUser = data.username;
+            currentUserRole = data.role;
+
             // Load posts on login success
             loadPosts();
         } else {
@@ -45,24 +50,24 @@ document.getElementById("submitPostBtn").addEventListener("click", () => {
         method: "POST",
         headers: {
             "Content-Type": "application/x-www-form-urlencoded",
-            "X-CSRF-TOKEN": csrfToken
+            "X-CSRF-TOKEN": csrfToken,
         },
-        body: params.toString()
+        body: params.toString(),
     })
-    .then(async (res) => {
-        const data = await res.json();
-        if (res.ok) {
-            // Clear inputs and refresh post list
-            titleInput.value = "";
-            contentInput.value = "";
-            loadPosts();
-        } else {
-            alert(data.message || "Failed to create post.");
-        }
-    })
-    .catch(() => {
-        alert("Failed to communicate with the server.");
-    });
+        .then(async (res) => {
+            const data = await res.json();
+            if (res.ok) {
+                // Clear inputs and refresh post list
+                titleInput.value = "";
+                contentInput.value = "";
+                loadPosts();
+            } else {
+                alert(data.message || "Failed to create post.");
+            }
+        })
+        .catch(() => {
+            alert("Failed to communicate with the server.");
+        });
 });
 
 // Load post list and render securely using DOM API
@@ -101,12 +106,21 @@ function loadPosts() {
 
                     // Add Action column with delete button
                     const tdAction = document.createElement("td");
-                    const btnDelete = document.createElement("button");
-                    btnDelete.textContent = "Delete";
-                    btnDelete.addEventListener("click", () => {
-                        deletePost(post.id);
-                    });
-                    tdAction.appendChild(btnDelete);
+
+                    // Render Delete button only if the user is the author or an admin
+                    if (
+                        post.author == currentUser ||
+                        currentUserRole == "ADMIN"
+                    ) {
+                        const btnDelete = document.createElement("button");
+                        btnDelete.textContent = "Delete";
+                        btnDelete.addEventListener("click", () => {
+                            deletePost(post.id);
+                        });
+                        tdAction.appendChild(btnDelete);
+                    } else {
+                        tdAction.textContent = "-"; // Show a dash if unauthorized
+                    }
                     tr.appendChild(tdAction);
 
                     tbody.appendChild(tr);
@@ -126,8 +140,10 @@ function viewPostDetail(id) {
             if (res.ok) {
                 // Update modal content securely using textContent
                 document.getElementById("modalTitle").textContent = data.title;
-                document.getElementById("modalAuthor").textContent = data.author;
-                document.getElementById("modalContent").textContent = data.content;
+                document.getElementById("modalAuthor").textContent =
+                    data.author;
+                document.getElementById("modalContent").textContent =
+                    data.content;
 
                 // Show overlay and modal
                 document.getElementById("modalOverlay").style.display = "block";
@@ -155,21 +171,27 @@ document.getElementById("modalOverlay").addEventListener("click", closeModal);
 
 // Send post deletion request with CSRF token header
 function deletePost(id) {
+    // Show confirmation dialog before sending delete request
+    // In Automation Test Driver(Antigravity right, upper chrome button is that) dismiss confirm(), alert(), etc...
+    if (!confirm("Are you sure you want to delete this post?")) {
+        return;
+    }
+
     fetch("/api/post?id=" + id, {
         method: "DELETE",
         headers: {
-            "X-CSRF-TOKEN": csrfToken
-        }
+            "X-CSRF-TOKEN": csrfToken,
+        },
     })
-    .then(async (res) => {
-        const data = await res.json();
-        if (res.ok) {
-            loadPosts(); // Refresh list
-        } else {
-            alert(data.message || "Failed to delete post.");
-        }
-    })
-    .catch(() => {
-        alert("Failed to communicate with the server.");
-    });
+        .then(async (res) => {
+            const data = await res.json();
+            if (res.ok) {
+                loadPosts(); // Refresh list
+            } else {
+                alert(data.message || "Failed to delete post.");
+            }
+        })
+        .catch(() => {
+            alert("Failed to communicate with the server.");
+        });
 }
