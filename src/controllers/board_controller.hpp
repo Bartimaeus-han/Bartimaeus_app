@@ -71,15 +71,17 @@ public:
     void handleGetPostDetail(const httplib::Request &req, httplib::Response &res, const UserContext &ctx) {
         std::string username = ctx.username;
 
-        // Post's ID check
         std::string id_str = req.get_param_value("id");
-        if (id_str.empty()) {
+
+        auto parse_id = safeStoi(id_str);
+        if (!parse_id.has_value()) {
             res.status = 400; // Bad Request
-            res.set_content(R"({"status":"error", "message":"Post ID is required"})", "application/json");
+            res.set_content(R"({"status":"error", "message":"Invalid post ID"})", "application/json");
             return;
         }
 
-        int id = std::stoi(id_str);
+        int id = parse_id.value();
+
         Post post = boardService.getPostById(id);
 
         if (post.id == 0) {
@@ -107,13 +109,15 @@ public:
         std::string username = ctx.username;
 
         auto id_str = req.get_param_value("id");
-        if (id_str.empty()) {
+
+        auto parse_id = safeStoi(id_str);
+        if (!parse_id.has_value()) {
             res.status = 400; // Bad Request
-            res.set_content(R"({"status":"error", "message":"Post ID is required"})", "application/json");
+            res.set_content(R"({"status":"error", "message":"Invalid post ID"})", "application/json");
             return;
         }
 
-        int id = std::stoi(id_str);
+        int id = parse_id.value();
 
         // Check post is really exist
         Post post = boardService.getPostById(id);

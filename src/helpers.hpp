@@ -5,8 +5,10 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <optional> // To return safe return values
 #include <random>
 #include <sstream>
+#include <stdexcept> // For exception handling
 #include <string>
 #include <string_view>
 
@@ -152,4 +154,36 @@ inline std::string escapeJson(const std::string &input) {
             output += c;
     }
     return output;
+}
+
+inline std::optional<int> safeStoi(const std::string &str) {
+    if (str.empty()) {
+        return std::nullopt;
+    }
+
+    // Ensure it consists of digits
+    size_t start = 0;
+    if (str[0] == '-' || str[0] == '+') {
+        // Return nullopt if only a sign is provided
+        if (str.length() == 1)
+            return std::nullopt;
+        start = 1;
+    }
+
+    for (size_t i = start; i < str.length(); i++) {
+        if (!std::isdigit(static_cast<unsigned char>(str[i]))) {
+            // Return nullopt if non-digit character is found
+            return std::nullopt;
+        }
+    }
+
+    try {
+        return std::stoi(str);
+    } catch (const std::invalid_argument &) {
+        // In case of invalid format
+        return std::nullopt;
+    } catch (const std::out_of_range &) {
+        // In case of integer overflow/underflow
+        return std::nullopt;
+    }
 }

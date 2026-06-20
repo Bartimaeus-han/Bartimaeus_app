@@ -36,11 +36,13 @@ compile_commands.json
 
 # Local editor helper
 .clangd
+.cursorrules
 
 error.log
 Web_Application_Guide.md
 주요정보통신기반시설 기술적 취약점 분석·평가 방법 상세가이드.md
-.cursorrules
+chat_history_export.md
+.gitignore
 
 # SQLite database files
 server.db
