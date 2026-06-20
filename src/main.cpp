@@ -10,6 +10,12 @@
 #include <httplib.h>
 #include <iostream>
 
+#if defined(_WIN32)
+#include <psapi.h> // Process memory information API
+#include <windows.h>
+#endif
+#include <iomanip> // Formatted output
+
 // to allow the signal handler function to access the server object
 httplib::Server *global_svr = nullptr;
 
@@ -21,10 +27,57 @@ void handle_signal(int signal) {
     }
 }
 
+void limitProcessMemory(size_t limit_mb) {
+#if defined(_WIN32)
+    HANDLE hJob = CreateJobObject(NULL, NULL);
+
+    if (!hJob) {
+        std::cerr << "[Memory Limit] Failed to create Job Object. Error: " << GetLastError() << std::endl;
+        return;
+    }
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION jeli = {0};
+    jeli.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_PROCESS_MEMORY;
+    jeli.ProcessMemoryLimit = limit_mb * 1024 * 1024; // Convert MB to bytes
+
+    if (!SetInformationJobObject(hJob, JobObjectExtendedLimitInformation, &jeli, sizeof(jeli))) {
+        std::cerr << "[Memory Limit] Failed to set Job Object info. Error: " << GetLastError() << std::endl;
+        return;
+    }
+
+    if (!AssignProcessToJobObject(hJob, GetCurrentProcess())) {
+        std::cerr << "[Memory Limit] Failed to assign process to Job Object. Error: " << GetLastError() << std::endl;
+        return;
+    }
+
+    std::cout << "[Memory Limit] Process memory limited to " << limit_mb << " MB succesfully." << std::endl;
+#endif
+}
+
+// Function to print the process memory usage on startup
+void printMemoryUsage() {
+#if defined(_WIN32)
+    PROCESS_MEMORY_COUNTERS pmc;
+    if (GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc))) {
+        // Convert bytes to megabytes
+        double physical_mb = static_cast<double>(pmc.WorkingSetSize) / (1024.0 * 1024.0);
+        double commit_mb = static_cast<double>(pmc.PagefileUsage) / (1024.0 * 1024.0);
+
+        std::cout << "[System Info] Memory Usage on Startup:" << std::endl;
+        std::cout << "  - Physical Memory (Working Set): " << std::fixed << std::setprecision(2) << physical_mb << " MB" << std::endl;
+        std::cout << "  - Committed Memory (Private Bytes): " << commit_mb << " MB" << std::endl;
+    }
+#endif
+}
+
 int main() {
+    // Limit the server process memory to 30MB
+    limitProcessMemory(30);
+
     // Initialize HTTPS server by setting paths to self-signed certificate and private key files (/certs/cert.pem&key.pem)
     httplib::SSLServer svr("./certs/cert.pem", "./certs/key.pem");
     global_svr = &svr; // Register current server address in the global pointer
+
+    svr.set_payload_max_length(1024 * 1024); // Limit the maximum payload size the server can receive to 1MB (Defense payload resource exhaustion attack)
 
     // CSP Option
     // default-src 'self' : Basic resources such as images and fonts are allowed to be fetched only from the current server origin
@@ -200,6 +253,7 @@ int main() {
     std::cout
         << "========================================================" << std::endl;
     std::cout << " Secure Web Server is starting on https://localhost:9090" << std::endl;
+    printMemoryUsage();
     std::cout << "========================================================" << std::endl;
 
     if (!svr.listen("0.0.0.0", 9090)) {
