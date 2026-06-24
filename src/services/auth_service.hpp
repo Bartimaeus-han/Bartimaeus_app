@@ -1,7 +1,9 @@
 #pragma once              // prevents header files from being included multiple times
 #include "db_queries.hpp" // Include SQL query header
-#include "picosha2.h"     // Include SHA-256 hashing library
+#include "helpers.hpp"
+#include "picosha2.h" // Include SHA-256 hashing library
 #include "sqlite3.h"
+
 #include <cctype> // Including character classification functions for hex validation (std::isxdigit)
 #include <iostream>
 #include <mutex> // Mutual Exclusion
@@ -23,12 +25,6 @@ private:
     std::mutex db_mutex;                           // Simultaneous access control DB in multi-thread env
 
     sqlite3 *db = nullptr;
-
-    // using SHA-256 algorithm
-    std::string hashPasswordSHA256(const std::string &username, const std::string &password) {
-        // Using 'username' for unique salt
-        return picosha2::hash256_hex_string(password + "_" + username);
-    }
 
 public:
     // When Program started, open DB file
@@ -103,11 +99,16 @@ public:
             return false;
         }
 
-        std::string hashed_password = hashPasswordSHA256(username, password);
+        // 1. Create random safety 32-character salt
+        std::string salt = generateSecureSalt();
 
-        // Parameter Binding
+        // 2. stretch password with salt 10 thousand times
+        std::string hashed_password = stretchPasswordSHA256(password, salt);
+
+        // Parameter Binding (username, password, salt)
         sqlite3_bind_text(insert_stmt, 1, username.c_str(), -1, SQLITE_TRANSIENT);
         sqlite3_bind_text(insert_stmt, 2, hashed_password.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(insert_stmt, 3, salt.c_str(), -1, SQLITE_TRANSIENT);
 
         // Execute query and verify insert success
         rc = sqlite3_step(insert_stmt);
@@ -136,19 +137,28 @@ public:
             return false;
         }
 
-        std::string hashed_password = hashPasswordSHA256(username, password);
-
-        // Parameter Binding
+        // Parameter Binding (only username)
         sqlite3_bind_text(stmt, 1, username.c_str(), -1, SQLITE_TRANSIENT);
-        sqlite3_bind_text(stmt, 2, hashed_password.c_str(), -1, SQLITE_TRANSIENT);
 
         bool authenticated = false;
 
         // Execute query and verify result
         rc = sqlite3_step(stmt);
         if (rc == SQLITE_ROW) {
-            authenticated = true;
-            std::cout << "[Login Success] Authenticated: " << username << std::endl;
+            // Get salt and stored password from DB
+            std::string db_password_hash = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 0));
+            std::string db_salt = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1));
+
+            // Calculate key stretching (plain input text + salt)
+            std::string stretched_input = stretchPasswordSHA256(password, db_salt);
+
+            // Finally, compare both hash value
+            if (db_password_hash == stretched_input) {
+                authenticated = true;
+                std::cout << "[Login Success] Authenticated: " << username << std::endl;
+            } else {
+                std::cout << "[Login Failed] Invalid credentials (Password mismatch) for: " << username << std::endl;
+            }
         } else {
             std::cout << "[Login Failed] Invalid credentials for: " << username << std::endl;
         }

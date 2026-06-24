@@ -12,6 +12,8 @@
 #include <string>
 #include <string_view>
 
+#include "picosha2.h" // SHA-256 hash library for generating secure session IDs
+
 // Helper for cookie parsing
 inline std::string getCookieValue(const std::string &cookie_header, const std::string &key) {
     // Return empty string if header or key is empty
@@ -186,4 +188,31 @@ inline std::optional<int> safeStoi(const std::string &str) {
         // In case of integer overflow/underflow
         return std::nullopt;
     }
+}
+
+// Generate cryptographically secure random salt (32-character hex string)
+inline std::string generateSecureSalt() {
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(0, 15);
+    std::stringstream ss;
+
+    // Generate 16 random bytes and convert to 32-character hex string
+    for (int i = 0; i < 32; i++) {
+        ss << std::hex << dis(gen);
+    }
+    return ss.str();
+}
+
+// Stretch password with salt N times using SHA-256
+inline std::string stretchPasswordSHA256(const std::string &password, const std::string &salt, int iterations = 10000) {
+    // hash (password + salt)
+    std::string current_hash = picosha2::hash256_hex_string(password + salt);
+
+    // second hash (first hash + salt) * `iterations` times
+    for (int i = 1; i < iterations; i++) {
+        current_hash = picosha2::hash256_hex_string(current_hash + salt);
+    }
+
+    return current_hash;
 }

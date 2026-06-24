@@ -6,6 +6,7 @@ constexpr const char *CREATE_USERS_TABLE =
     "CREATE TABLE IF NOT EXISTS users("
     "username TEXT PRIMARY KEY, "
     "password TEXT NOT NULL, "
+    "salt TEXT," // To store salt value
     "role TEXT NOT NULL DEFAULT 'USER'"
     ");";
 
@@ -17,10 +18,10 @@ constexpr const char *CREATE_USERS_TABLE =
 constexpr const char *SECURE_CHECK_USER = "SELECT username FROM users WHERE username = ?;";
 
 // Secure query for user registration
-constexpr const char *SECURE_INSERT_USER = "INSERT INTO users (username, password) VALUES (?, ?);";
+constexpr const char *SECURE_INSERT_USER = "INSERT INTO users (username, password, salt) VALUES (?, ?, ?);";
 
 // Secure query for login validation
-constexpr const char *SECURE_SELECT_USER = "SELECT * FROM users WHERE username = ? AND password = ?;";
+constexpr const char *SECURE_SELECT_USER = "SELECT password, salt, role FROM users WHERE username = ?;";
 
 constexpr const char *SECURE_SELECT_USER_ROLE = "SELECT role FROM users WHERE username = ?;";
 
