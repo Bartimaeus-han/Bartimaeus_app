@@ -11,20 +11,13 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Set external library auto download and synchronize
-# FetchContent : A module among CMake's built-in features that directly fetches libraries
-#                from the internet and integrates them into the build.
-include(FetchContent)
-# declare information about external libraries to import
-FetchContent_Declare(
-    httplib
-    # This address is official repository
-    GIT_REPOSITORY https://github.com/yhirose/cpp-httplib.git
-    GIT_TAG       v0.18.3  # It points to a specific version
-)
-# download and get to build setting a httplib
-# For this step, we can use `httplib` in our project
-FetchContent_MakeAvailable(httplib)
+# ----------------------------------------------------------------------
+# Local 3rdparty Library Configurations (Secure & Offline Build Support)
+# ----------------------------------------------------------------------
+# 1. cpp-httplib configuration
+add_library(httplib INTERFACE)
+target_include_directories(httplib INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/cpp-httplib)
+add_library(httplib::httplib ALIAS httplib)
 
 # This method have 'supply chain attack vulnerabilities' 
 # FetchContent_Declare(
@@ -37,7 +30,7 @@ FetchContent_MakeAvailable(httplib)
 # make variable named `SOURCES` and store source file list to compile
 set(SOURCES
     src/main.cpp
-    src/sqlite3.c   # Include directly in the build target
+    3rdparty/sqlite3/sqlite3.c   # Include directly in the build target
 )
 
 # Search for OpenSSL package
@@ -61,4 +54,8 @@ target_link_libraries(SecureWebServer PRIVATE httplib::httplib OpenSSL::SSL Open
 # Enable OpenSSL support macro definition
 target_compile_definitions(SecureWebServer PRIVATE CPPHTTPLIB_OPENSSL_SUPPORT)
 
-target_include_directories(SecureWebServer PRIVATE src)
+target_include_directories(SecureWebServer PRIVATE 
+    src
+    3rdparty/sqlite3
+    3rdparty/picosha2
+)
