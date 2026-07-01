@@ -57,6 +57,8 @@ constexpr const char *SECURE_SELECT_POST = "SELECT * FROM posts WHERE id = ?;";
 
 // Vulnerable post deletion query for IDOR lab
 constexpr const char *VULN_DELETE_POST = "DELETE FROM posts WHERE id = ?;";
+// Only the author or an admin can delete (check author or role)
+constexpr const char *SECURE_DELETE_POST = "DELETE FROM posts WHERE id = ? AND (author = ? OR ? = 'ADMIN')";
 } // namespace Queries
 
 // constexpr (Constant Expression)

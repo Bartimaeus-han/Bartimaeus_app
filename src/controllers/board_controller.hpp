@@ -104,7 +104,6 @@ public:
 
     // API to handle post deletion request
     // Defense CSRF to check CSRF token
-    // IDOR vulnerability - don't check that delete person and author is same user
     void handleDeletePost(const httplib::Request &req, httplib::Response &res, const UserContext &ctx) {
         std::string username = ctx.username;
 
@@ -137,7 +136,8 @@ public:
             return;
         }
 
-        if (boardService.deletePost(id)) {
+        // Call double securyti validation service
+        if (boardService.deletePost(id, username, role)) {
             // Log to delete post successfully
             std::cout << "[Board Success] User '" << username << "' deleted post ID: " << id << std::endl;
             res.status = 200; // OK

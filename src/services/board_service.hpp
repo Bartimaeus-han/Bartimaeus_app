@@ -9,7 +9,7 @@
 
 // Define post data structure
 struct Post {
-    int id = 0;             // Default to 0 for "not found" detection
+    int id = 0; // Default to 0 for "not found" detection
     std::string title;
     std::string content;
     std::string author;     // who write this post?
@@ -131,21 +131,28 @@ public:
 
     // delete a post
     // This version function has IDOR vulnerable so, need security authentication
-    bool deletePost(int id) {
+    bool deletePost(int id, const std::string &username, const std::string &role) {
         std::lock_guard<std::mutex> lock(db_mutex);
         sqlite3_stmt *stmt = nullptr;
 
-        int rc = sqlite3_prepare_v2(db, Queries::VULN_DELETE_POST, -1, &stmt, nullptr);
+        // Apply secure parameterized query
+        int rc = sqlite3_prepare_v2(db, Queries::SECURE_DELETE_POST, -1, &stmt, nullptr);
         if (rc != SQLITE_OK) {
             std::cerr << "[Board Error] Prepare delete post failed: " << sqlite3_errmsg(db) << std::endl;
             return false;
         }
 
         sqlite3_bind_int(stmt, 1, id);
+        sqlite3_bind_text(stmt, 2, username.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 3, role.c_str(), -1, SQLITE_TRANSIENT);
 
         rc = sqlite3_step(stmt);
+
+        // Check the number of rows actually delete in the DB
+        int changes = sqlite3_changes(db);
         sqlite3_finalize(stmt);
 
-        return (rc == SQLITE_DONE);
+        // Query success & actually delete
+        return (rc == SQLITE_DONE && changes > 0);
     }
 };
