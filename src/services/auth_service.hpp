@@ -139,24 +139,68 @@ public:
         sqlite3_bind_text(stmt, 1, username.c_str(), -1, SQLITE_TRANSIENT);
 
         bool authenticated = false;
+        bool needs_migration = false; // Flag for migration target
 
         // Execute query and verify result
         rc = sqlite3_step(stmt);
         if (rc == SQLITE_ROW) {
             // Get salt and stored password from DB
             std::string db_password_hash = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 0));
+            std::string db_salt = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1));
 
-            if (verifyPasswordArgon2id(password, db_password_hash)) {
-                authenticated = true;
-                std::cout << "[Login Success] Authenticated: " << username << std::endl;
-            } else {
-                std::cout << "[Login Failed] Invalid credentials (Password mismatch) for: " << username << std::endl;
+            // 1. Check if the stored hash is Argon2id format
+            if (db_password_hash.find("$argon2id$", 0) == 0) {
+                if (verifyPasswordArgon2id(password, db_password_hash)) {
+                    authenticated = true;
+                    std::cout << "[Login Success] Authenticated via Argon2id: " << username << std::endl;
+                } else {
+                    std::cout << "[Login Failed] Password mismatch (Argon2id) for: " << username << std::endl;
+                }
             }
+
+            // 2. Verify with legacy SHA-256 if not Argon2id
+            else {
+                std::string stretched_input = stretchPasswordSHA256(password, db_salt);
+                if (db_password_hash == stretched_input) {
+                    authenticated = true;
+                    needs_migration = true;
+                    std::cout << "[Login Success] Authenticated via Legacy SHA_256: " << username << std::endl;
+                } else {
+                    std::cout << "[Login Failed] Password mismatch (SHA-256) for: " << username << std::endl;
+                }
+            }
+
         } else {
             std::cout << "[Login Failed] Invalid credentials for: " << username << std::endl;
         }
 
-        sqlite3_finalize(stmt);
+        sqlite3_finalize(stmt); // Clean up select statement
+
+        // 3. Execute real-time migration for legacy user on successful login
+        if (authenticated && needs_migration) {
+            sqlite3_stmt *update_stmt = nullptr;
+            int prepare_rc = sqlite3_prepare_v2(db, Queries::SECURE_UPDATE_USER_PASSWORD, -1, &update_stmt, nullptr);
+
+            if (prepare_rc == SQLITE_OK) {
+                // Generate new Argon2id hash using plain password
+                std::string new_hash = hashPasswordArgon2id(password);
+                std::string new_salt = "argon2id"; // salt column - until when?
+
+                sqlite3_bind_text(update_stmt, 1, new_hash.c_str(), -1, SQLITE_TRANSIENT);
+                sqlite3_bind_text(update_stmt, 2, new_salt.c_str(), -1, SQLITE_TRANSIENT);
+                sqlite3_bind_text(update_stmt, 3, username.c_str(), -1, SQLITE_TRANSIENT);
+
+                if (sqlite3_step(update_stmt) == SQLITE_DONE) {
+                    std::cout << "[Migration Success] Legacy user '" << username << "' has been successfully upgraded to Argon2id!" << std::endl;
+                } else {
+                    std::cerr << "[Migration Fail] Failed to update password to DB: " << sqlite3_errmsg(db) << std::endl;
+                }
+
+                sqlite3_finalize(update_stmt);
+            } else {
+                std::cerr << "[Migration Fail] Prepare update statement failed: " << sqlite3_errmsg(db) << std::endl;
+            }
+        }
 
         return authenticated;
     }

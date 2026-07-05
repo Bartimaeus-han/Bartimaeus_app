@@ -46,6 +46,9 @@ constexpr const char *CREATE_POSTS_TABLE =
     "created_at TEXT DEFAULT CURRENT_TIMESTAMP"
     ");";
 
+// Update query for  password algorithm migration on login
+constexpr const char *SECURE_UPDATE_USER_PASSWORD = "UPDATE users SET password = ?, salt = ? WHERE username = ?;";
+
 // Secure parameterized query for writing a post
 constexpr const char *SECURE_INSERT_POST = "INSERT INTO posts (title, content, author) VALUES (?, ?, ?);";
 
