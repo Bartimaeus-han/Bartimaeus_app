@@ -1,5 +1,6 @@
 #pragma once
 
+#include <argon2.h> // Argon2 hashing header
 #include <cctype>
 #include <chrono>
 #include <fstream>
@@ -215,4 +216,50 @@ inline std::string stretchPasswordSHA256(const std::string &password, const std:
     }
 
     return current_hash;
+}
+
+// Hash password to encoded string using Argon2id
+inline std::string hashPasswordArgon2id(const std::string &password) {
+    // 1. Generate secure random 16-byte salt
+    std::vector<uint8_t> salt(16);
+    static std::random_device rd;
+    static std::mt19937 gen(rd()); // 19937: Mersenne Prime
+
+    std::uniform_int_distribution<uint16_t> dis(0, 255);
+
+    for (auto &val : salt) {
+        val = static_cast<uint8_t>(dis(gen));
+    }
+
+    // 2. Define upgraded hashing parameters
+    uint32_t t_cost = 3;      // Number of passes
+    uint32_t m_cost = 32768;  // Memory usage
+    uint32_t parallelism = 1; // Number of parallel threads
+    uint32_t hash_len = 32;   // Length of the output hash
+
+    // 3. Calculate required length for the encoded buffer
+    size_t encoded_len = argon2_encodedlen(t_cost, m_cost, parallelism, salt.size(), hash_len, Argon2_id);
+    std::string encoded(encoded_len, '\0');
+
+    // 4. Perform Argon2id encoding hash
+    int rc = argon2id_hash_encoded(
+        t_cost, m_cost, parallelism,
+        password.data(), password.size(),
+        salt.data(), salt.size(),
+        hash_len,
+        encoded.data(), encoded.size());
+
+    if (rc != ARGON2_OK) { // ARGON2_OK<enum Argon2_ErrorCodes>
+        throw std::runtime_error("Argon2id hashing failed: " + std::string(argon2_error_message(rc)));
+    }
+
+    // 5. Remove trailing null chars and return
+    encoded.erase(encoded.find('\0'));
+    return encoded;
+}
+
+// Verify input password against Argon2id hash
+inline bool verifyPasswordArgon2id(const std::string &password, const std::string &encoded_hash) {
+    int rc = argon2id_verify(encoded_hash.c_str(), password.data(), password.size());
+    return rc == ARGON2_OK;
 }

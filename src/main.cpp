@@ -6,6 +6,7 @@
 #include "services/board_service.hpp"
 #include "services/login_limiter.hpp"   // Login limiter header
 #include "services/session_manager.hpp" // Session manager header
+#include <argon2.h>                     // for Argon2 hasing header
 #include <csignal>                      // for signal processing
 #include <httplib.h>
 #include <iostream>
@@ -70,8 +71,8 @@ void printMemoryUsage() {
 }
 
 int main() {
-    // Limit the server process memory to 30MB
-    limitProcessMemory(30);
+    // Limit the server process memory to 128MB
+    limitProcessMemory(128);
 
     // Initialize HTTPS server by setting paths to self-signed certificate and private key files (/certs/cert.pem&key.pem)
     httplib::SSLServer svr("./certs/cert.pem", "./certs/key.pem");

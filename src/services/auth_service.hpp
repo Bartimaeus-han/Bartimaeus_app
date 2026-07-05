@@ -99,11 +99,9 @@ public:
             return false;
         }
 
-        // 1. Create random safety 32-character salt
-        std::string salt = generateSecureSalt();
-
         // 2. stretch password with salt 10 thousand times
-        std::string hashed_password = stretchPasswordSHA256(password, salt);
+        std::string hashed_password = hashPasswordArgon2id(password);
+        std::string salt = "argon2id";
 
         // Parameter Binding (username, password, salt)
         sqlite3_bind_text(insert_stmt, 1, username.c_str(), -1, SQLITE_TRANSIENT);
@@ -147,13 +145,8 @@ public:
         if (rc == SQLITE_ROW) {
             // Get salt and stored password from DB
             std::string db_password_hash = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 0));
-            std::string db_salt = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1));
 
-            // Calculate key stretching (plain input text + salt)
-            std::string stretched_input = stretchPasswordSHA256(password, db_salt);
-
-            // Finally, compare both hash value
-            if (db_password_hash == stretched_input) {
+            if (verifyPasswordArgon2id(password, db_password_hash)) {
                 authenticated = true;
                 std::cout << "[Login Success] Authenticated: " << username << std::endl;
             } else {
