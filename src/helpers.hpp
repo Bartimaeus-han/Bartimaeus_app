@@ -263,3 +263,36 @@ inline bool verifyPasswordArgon2id(const std::string &password, const std::strin
     int rc = argon2id_verify(encoded_hash.c_str(), password.data(), password.size());
     return rc == ARGON2_OK;
 }
+
+// Convert HTML special characters in string to safe HTML entities
+inline std::string htmlEscape(const std::string &data) {
+    std::string buffer;
+    buffer.reserve(data.size() * 1.1);
+
+    for (size_t pos = 0; pos != data.size(); ++pos) {
+        switch (data[pos]) {
+        case '&':
+            buffer.append("&amp;");
+            break; // 앰퍼샌드 치환 (Ampersand replacement)
+        case '\"':
+            buffer.append("&quot;");
+            break; // 쌍따옴표 치환 (Double quote replacement)
+        case '\'':
+            buffer.append("&#x27;");
+            break; // 외따옴표 치환 (Single quote replacement)
+        case '<':
+            buffer.append("&lt;");
+            break; // 미만 부호 치환 (Less-than sign replacement)
+        case '>':
+            buffer.append("&gt;");
+            break; // 초과 부호 치환 (Greater-than sign replacement)
+        case '/':
+            buffer.append("&#x2F;");
+            break; // 슬래시 치환으로 HTML 태그 닫기 우회 방지 (Slash replacement to prevent closing tag bypass)
+        default:
+            buffer.append(1, data[pos]);
+            break;
+        }
+    }
+    return buffer;
+}

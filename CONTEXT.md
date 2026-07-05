@@ -46,6 +46,8 @@
 | **Local Changes** | `src/*`, `CMakeLists.txt` | **Refactor** | 중복되는 세션/CSRF 검증 코드를 공통 횡단 관심사로 통합하기 위해 C++ 함수형 스타일의 보안 미들웨어([middleware.hpp](file:///c:/Projects/Bartimaeus_app/src/middleware.hpp)) 도입 및 컨트롤러 핸들러 슬림화 리팩토링 수행 |
 | **Local Changes** | `src/*`, `public/js/*` | **Refactor (AdminDelete)** | 관리자가 다른 사용자의 글을 삭제할 수 있도록 권한 정책 변경(Option 1) 및 클라이언트 측 confirm() 삭제 재확인 로직 추가 |
 | **Local Changes** | `src/*` | **Security (IN)** | 서비스 계층 및 SQL 수준에서 게시글 삭제 권한 검증 이중화 적용 (Defense in Depth) |
+| **Local Changes** | `src/*`, `CMakeLists.txt` | **Security (Argon2id)** | 패스워드 해싱 알고리즘을 SHA-256에서 Argon2id(32MB, 3-pass)로 업그레이드 완료하고, 로그인 시 레거시 사용자의 해시를 실시간 자동 전환(Lazy Migration)하는 과도기 대응 로직 구현 |
+| **Local Changes** | `src/*` | **Security (XSS)** | 게시글 제목, 본문, 작성자 출력 시점에 HTML Entity Encoding(`htmlEscape`)을 적용하여 세션/브라우저 상태와 관계없이 Stored XSS 공격면을 원천 차단하는 이중 방어 패치 적용 |
 
 ---
 

@@ -53,9 +53,9 @@ public:
 
         for (size_t i = 0; i < posts.size(); i++) {
             json += "{\"id\":" + std::to_string(posts[i].id) +
-                    ", \"title\":\"" + escapeJson(posts[i].title) + "\"" +
-                    ", \"content\":\"" + escapeJson(posts[i].content) + "\"" +
-                    ", \"author\":\"" + escapeJson(posts[i].author) + "\"" +
+                    ", \"title\":\"" + escapeJson(htmlEscape(posts[i].title)) + "\"" +
+                    ", \"content\":\"" + escapeJson(htmlEscape(posts[i].content)) + "\"" +
+                    ", \"author\":\"" + escapeJson(htmlEscape(posts[i].author)) + "\"" +
                     "}";
             if (i < posts.size() - 1) {
                 json += ",";
@@ -94,9 +94,9 @@ public:
         std::cout << "[Board Success] User '" << username << "' read post ID: " << id << " ('" << post.title << "')" << std::endl;
 
         std::string json = "{\"id\":" + std::to_string(post.id) +
-                           ", \"title\":\"" + escapeJson(post.title) + "\"" +
-                           ", \"content\":\"" + escapeJson(post.content) + "\"" +
-                           ", \"author\":\"" + escapeJson(post.author) + "\"" +
+                           ", \"title\":\"" + escapeJson(htmlEscape(post.title)) + "\"" +
+                           ", \"content\":\"" + escapeJson(htmlEscape(post.content)) + "\"" +
+                           ", \"author\":\"" + escapeJson(htmlEscape(post.author)) + "\"" +
                            "}";
         res.status = 200; // OK
         res.set_content(json, "application/json");

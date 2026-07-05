@@ -51,7 +51,9 @@
   3. 로그인 시 기존 세션을 지우고 새 세션을 할당하여 **Session Fixation** 공격을 방지하며, 세션 쿠키 발급 시 **`HttpOnly`** 및 **`Secure`** 플래그를 설정하여 스크립트 유출 및 평문 전송 경로를 차단합니다.
 
 ### 3.3 교차 사이트 스크립팅 (XSS) 방어
-* **C++ JSON Escape**: [auth_controller.hpp](file:///c:/Projects/Bartimaeus_app/src/controllers/auth_controller.hpp)에서 JSON 포맷의 문자열 데이터를 리턴할 때, 특수 문자(`<`, `>`, `"`, `\`, `/` 등)를 이스케이프하는 헬퍼를 경유시켜 브라우저 오동작(Stored XSS)을 방어합니다.
+* **C++ JSON Escape & HTML Entity Encoding**: 
+  1. JSON 구문 분석 트리 훼손을 방지하기 위해 응답 문자열 포맷팅 시 기본적으로 `escapeJson` 처리를 수행합니다.
+  2. 이에 더해, 게시판 출력 API([board_controller.hpp](file:///c:/Projects/Bartimaeus_app/src/controllers/board_controller.hpp))에서 글 제목, 내용, 작성자 등의 데이터를 출력하기 직전 C++ 레벨에서 HTML 엔티티 인코더인 `htmlEscape`를 경유하도록 구현했습니다. 이를 통해 `<`, `>`, `&`, `"`, `'`, `/` 등의 메타 문자가 안전한 엔티티(예: `&lt;`, `&gt;`)로 물리적 치환되어 브라우저 렌더링 방식(innerHTML 등)이나 CSP 우회 시나리오에 구애받지 않고 XSS 공격을 원천 무력화합니다.
 * **기본 보안 헤더 및 CSP**:
   * [main.cpp](file:///c:/Projects/Bartimaeus_app/src/main.cpp)에서 `Content-Security-Policy`(`default-src 'self'`)를 포함한 주요 브라우저 보안 헤더들을 응답 기본값으로 강제 설정합니다.
   * 웹 페이지 내의 인라인 스크립트를 허용하지 않고 오직 독립된 `.js` 파일의 코드만 해석하도록 구성하여 반사형/저장형 XSS의 공격면을 통제합니다.
@@ -87,7 +89,12 @@
   1. 게시글 삭제 등 민감한 리소스 제어 시, 요청자의 세션 사용자 ID(`username`)와 대상 리소스의 실제 작성자(`post.author`)가 일치하는지 철저하게 비교 검증합니다.
   2. 추가적으로 수직적 권한 제어를 위해, 요청자의 역할이 관리자(`ADMIN`)인 경우(`role == "ADMIN"`)에는 작성자 일치 여부와 관계없이 게시글을 삭제할 수 있도록 비즈니스 규칙(Option 1)을 적용했습니다.
   3. **서비스 계층 및 SQL 레벨 이중 검증 (Defense in Depth)**: 컨트롤러 단의 권한 체크 우회(IDOR) 가능성을 예방하기 위해, [BoardService::deletePost](file:///c:/Projects/Bartimaeus_app/src/services/board_service.hpp#L134) 함수가 요청자 아이디와 역할을 필수 인자로 받도록 설계했습니다. 내부적으로 `Queries::SECURE_DELETE_POST` 쿼리(`DELETE FROM posts WHERE id = ? AND (author = ? OR ? = 'ADMIN')`)를 수행하고, SQLite `sqlite3_changes` API를 사용하여 쿼리 결과에 의해 실제 레코드가 1개 이상 지워졌는지를 감지해 성공 여부를 리턴하는 안전한 이중 방어막을 구축했습니다.
-* **목적**: 리소스 식별자(ID) 값만 임의로 바꾸어 타인의 리소스를 조작하는 수평적 권한 상승(IDOR/BOLA) 공격을 근본적으로 차단하며, 관리자는 정당한 상위 권한으로 게시판을 전체 관리할 수 있는 접근 통제(Access Control) 체계를 확보합니다.
+### 3.10 패스워드 보안 강화 및 실시간 마이그레이션 (Argon2id & Lazy Migration)
+* **구현 방식**:
+  1. **Argon2id 도입**: 대규모 GPU 병렬 무차별 대입(Brute-forcing) 공격을 무력화하기 위해 메모리 하드(Memory-hard) 기반의 암호학적 키 유도 함수인 Argon2id를 도입했습니다 (설정값: m_cost = 32MB, t_cost = 3, parallelism = 1).
+  2. **솔트 내장 포맷 활용**: Argon2id 고유의 표준 인코딩 포맷(`$argon2id$v=19$...`)을 사용하여 별도 DB `salt` 컬럼의 물리적 관리 부담을 제거하고 결합도를 낮추었습니다.
+  3. **실시간 마이그레이션 (Lazy Migration)**: 로그인 요청 시 DB 해시 문자열 접두사를 감지하여, 레거시(SHA-256) 계정으로 인증 성공 시점에 평문 패스워드를 Argon2id로 신규 해싱하여 DB를 즉시 업데이트하는 횡단 관심사 로직을 추가했습니다.
+* **목적**: 노후화된 해시 알고리즘을 최신 업계 표준으로 안전하게 격상시키며, 프로덕션 환경의 다운타임이나 강제 패스워드 리셋 없이 장기적이고 유연하게 보안 취약점을 완전히 도려냅니다.
 
 ---
 
