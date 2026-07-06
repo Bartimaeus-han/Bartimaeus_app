@@ -1,8 +1,10 @@
 #pragma once
 #include <chrono>
+#include <iomanip>
 #include <mutex>
-#include <random>
+#include <openssl/rand.h>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
 
@@ -24,18 +26,19 @@ private:
     const std::chrono::minutes SESSION_LIFETIME = std::chrono::minutes(30);
 
     std::string generateSessionId() {
-        static const char hex_chars[] = "0123456789abcdef";
+        unsigned char buffer[32]; // Generate 32byte RN buffer
 
-        // Random number engine using hardware source as seed
-        std::random_device rd;
-        std::mt19937 generator(rd());                        // random number generate algorithm engine
-        std::uniform_int_distribution<> distribution(0, 15); // for uniform distribution
+        if (RAND_bytes(buffer, sizeof(buffer)) != 1) {
+            throw std::runtime_error("Failed to generate secure random bytes using OpenSSL");
+        }
 
         std::stringstream ss;
+        ss << std::hex << std::setfill('0');
 
-        for (int i = 0; i < 64; ++i) {
-            ss << hex_chars[distribution(generator)];
+        for (int i = 0; i < sizeof(buffer); ++i) {
+            ss << std::setw(2) << static_cast<int>(buffer[i]);
         }
+
         return ss.str();
     }
 

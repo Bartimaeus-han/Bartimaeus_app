@@ -48,6 +48,7 @@
 | **Local Changes** | `src/*` | **Security (IN)** | 서비스 계층 및 SQL 수준에서 게시글 삭제 권한 검증 이중화 적용 (Defense in Depth) |
 | **Local Changes** | `src/*`, `CMakeLists.txt` | **Security (Argon2id)** | 패스워드 해싱 알고리즘을 SHA-256에서 Argon2id(32MB, 3-pass)로 업그레이드 완료하고, 로그인 시 레거시 사용자의 해시를 실시간 자동 전환(Lazy Migration)하는 과도기 대응 로직 구현 |
 | **Local Changes** | `src/*` | **Security (XSS)** | 게시글 제목, 본문, 작성자 출력 시점에 HTML Entity Encoding(`htmlEscape`)을 적용하여 세션/브라우저 상태와 관계없이 Stored XSS 공격면을 원천 차단하는 이중 방어 패치 적용 |
+| **Local Changes** | [session_manager.hpp](file:///c:/Projects/Bartimaeus_app/src/services/session_manager.hpp), [helpers.hpp](file:///c:/Projects/Bartimaeus_app/src/helpers.hpp) | **Security (CSPRNG)** | 세션 ID 및 CSRF 토큰 생성 엔진을 취약한 `std::mt19937`에서 OpenSSL `RAND_bytes` 기반 CSPRNG로 패치하여 예측 가능성을 완전히 배제하고 엔트로피를 256비트로 확장. 또한 `helpers.hpp` 내의 한글 주석을 영문으로 치환하여 MSVC C4819 컴파일 경고 해결 |
 
 ---
 

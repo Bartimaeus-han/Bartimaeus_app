@@ -273,22 +273,22 @@ inline std::string htmlEscape(const std::string &data) {
         switch (data[pos]) {
         case '&':
             buffer.append("&amp;");
-            break; // 앰퍼샌드 치환 (Ampersand replacement)
+            break; // Ampersand replacement
         case '\"':
             buffer.append("&quot;");
-            break; // 쌍따옴표 치환 (Double quote replacement)
+            break; // Double quote replacement
         case '\'':
             buffer.append("&#x27;");
-            break; // 외따옴표 치환 (Single quote replacement)
+            break; // Single quote replacement
         case '<':
             buffer.append("&lt;");
-            break; // 미만 부호 치환 (Less-than sign replacement)
+            break; // Less-than sign replacement
         case '>':
             buffer.append("&gt;");
-            break; // 초과 부호 치환 (Greater-than sign replacement)
+            break; // Greater-than sign replacement
         case '/':
             buffer.append("&#x2F;");
-            break; // 슬래시 치환으로 HTML 태그 닫기 우회 방지 (Slash replacement to prevent closing tag bypass)
+            break; // Slash replacement to prevent closing tag bypass
         default:
             buffer.append(1, data[pos]);
             break;
