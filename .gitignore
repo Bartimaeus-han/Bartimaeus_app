@@ -36,7 +36,6 @@ compile_commands.json
 
 # Local editor helper
 .clangd
-.cursorrules
 
 error.log
 Web_Application_Guide.md
