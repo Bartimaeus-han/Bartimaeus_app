@@ -57,7 +57,11 @@ set(SOURCES
 )
 
 # Search for OpenSSL package
-set(OPENSSL_ROOT_DIR "C:/Users/Bartimaeus/anaconda3/Library")
+if(APPLE)
+    set(OPENSSL_ROOT_DIR "/opt/homebrew/opt/openssl")
+elseif(WIN32)
+    set(OPENSSL_ROOT_DIR "C:/Users/Bartimaeus/anaconda3/Library")
+endif()
 find_package(OpenSSL REQUIRED)
 
 # Create execute file

@@ -11,6 +11,13 @@
                 "strategy": "external"
             },
             "binaryDir": "${sourceDir}/build_win"
+        },
+        {
+            "name": "macos-default",
+            "displayName": "macOS Default",
+            "description": "macOS build configuration targeting build_mac directory",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build_mac"
         }
     ]
 }
