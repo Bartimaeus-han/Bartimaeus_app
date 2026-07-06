@@ -1,6 +1,14 @@
-# Project Security Exceptions
+# Project Exceptions & Error Handling Standards
 
-## 1. 비밀번호 복잡도 규칙
+이 문서는 여러 개발 세션이 공유하는 공통 기억 장치(Shared Memory)로, 다음 두 가지 예외(Exception) 범주를 관리합니다:
+1. **보안 정책 및 테스트 편의를 위한 예외 조항 (Policy Exceptions)**: 실무 수준의 보안 규정 중 개발/테스트 편의를 위해 임시 유예하거나 다르게 적용하는 항목들입니다.
+2. **C++ 코드 레벨 예외 및 에러 핸들링 표준 (Code Exception Standards)**: 런타임 오류나 DB 경합 상황 등에서 크래시를 방지하고 정상 복구하기 위한 소스 코드 수준의 예외 처리 규격입니다.
+
+---
+
+## 1. 보안 정책 및 테스트 편의를 위한 예외 조항 (Policy Exceptions)
+
+### 1.1 비밀번호 복잡도 규칙
 
 - 테스트용 유저 생성, 및 관리자 생성, 기존 데이터 관련 편의성 등을 위해서 비밀번호 복잡도는 권장하는 수준이 있지만 일단은 유예하도록 한다.
 
