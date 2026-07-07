@@ -14,6 +14,10 @@
 #if defined(_WIN32)
 #include <psapi.h> // Process memory information API
 #include <windows.h>
+#else
+#include <cstring>        // for `strerror`
+#include <mach/mach.h>    // for acquiring macOS kernel task info
+#include <sys/resource.h> // Resource limits on macOS/Linux
 #endif
 #include <iomanip> // Formatted output
 
@@ -51,6 +55,19 @@ void limitProcessMemory(size_t limit_mb) {
     }
 
     std::cout << "[Memory Limit] Process memory limited to " << limit_mb << " MB succesfully." << std::endl;
+
+#else
+    // Limit memory for macOS/Linux
+    struct rlimit rl;
+    rl.rlim_cur = limit_mb * 1024 * 1024;
+    rl.rlim_max = limit_mb * 1024 * 1024;
+
+    if (setrlimit(RLIMIT_AS, &rl) != 0) {
+        std::cerr << "[Memory Limit] Failed to set memory limit using setrlimit." << std::endl;
+        return;
+    }
+
+    std::cout << "[Memory Limit] Process memory limited to " << limit_mb << " MB succesfully on macOS/Linux." << std::endl;
 #endif
 }
 
@@ -67,12 +84,26 @@ void printMemoryUsage() {
         std::cout << "  - Physical Memory (Working Set): " << std::fixed << std::setprecision(2) << physical_mb << " MB" << std::endl;
         std::cout << "  - Committed Memory (Private Bytes): " << commit_mb << " MB" << std::endl;
     }
+#else
+    // Measure physical memory usage of process using macOS kernel API
+    struct task_vm_info vm_info;
+    mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
+
+    if (task_info(mach_task_self(), TASK_VM_INFO, (task_info_t)&vm_info, &count) == KERN_SUCCESS) {
+        double physical_mb = static_cast<double>(vm_info.resident_size) / (1024.0 * 1024.0);
+        double committed_mb = static_cast<double>(vm_info.phys_footprint) / (1024.0 * 1024.0);
+
+        std::cout
+            << "[System Info] Memory Usage:" << std::endl;
+        std::cout << "  - Physical Memory (Resident): " << std::fixed << std::setprecision(2) << physical_mb << " MB" << std::endl;
+        std::cout << "  - Committed Memory (Footprint): " << committed_mb << " MB" << std::endl;
+    }
 #endif
 }
 
 int main() {
     // Limit the server process memory to 128MB
-    limitProcessMemory(128);
+    limitProcessMemory(35);
 
     // Initialize HTTPS server by setting paths to self-signed certificate and private key files (/certs/cert.pem&key.pem)
     httplib::SSLServer svr("./certs/cert.pem", "./certs/key.pem");
