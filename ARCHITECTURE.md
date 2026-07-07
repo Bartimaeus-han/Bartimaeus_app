@@ -97,6 +97,13 @@
   3. **실시간 마이그레이션 (Lazy Migration)**: 로그인 요청 시 DB 해시 문자열 접두사를 감지하여, 레거시(SHA-256) 계정으로 인증 성공 시점에 평문 패스워드를 Argon2id로 신규 해싱하여 DB를 즉시 업데이트하는 횡단 관심사 로직을 추가했습니다.
 * **목적**: 노후화된 해시 알고리즘을 최신 업계 표준으로 안전하게 격상시키며, 프로덕션 환경의 다운타임이나 강제 패스워드 리셋 없이 장기적이고 유연하게 보안 취약점을 완전히 도려냅니다.
 
+### 3.11 메모리 소진 DoS 방어 및 백그라운드 가비지 컬렉터 (Memory DoS & Background GC)
+* **구현 방식**: 
+  1. **입력값 검증 (Input Validation)**: 로그인 진입로(`handleLogin`)에서 사용자명 크기를 3~32자로 제한하여 페이로드 비대화 공격(Payload Bloating)을 원천 차단합니다.
+  2. **가비지 컬렉션 (Active GC)**: `SessionManager` 및 `LoginLimiter`에 만료 데이터 소거 함수(`cleanupExpiredSessions`, `cleanupExpiredAttempts`)를 추가하고, `main.cpp`에서 C++ `std::thread` 백그라운드 데몬 스레드를 구동하여 10초 주기로 메모리를 능동 소거(Active Reclamation)합니다.
+  3. **스레드 안전 및 우아한 종료 (Thread-safety & Graceful Shutdown)**: `std::mutex` 락으로 멀티스레드 접근 경쟁 상태를 예방하고, `std::atomic<bool>` 플래그 분할 감시(1초 분할 수면) 구조로 서버 종료 시 즉각 스레드를 안전하게 조인(Join)합니다.
+* **목적**: 무차별 대입 및 임시 세션 데이터가 힙(Heap) 영역에 영구 누적되어 프로세스 가용 메모리 임계치(15MB)를 초과해 발생하는 서비스 거부(DoS) 취약점을 근본적으로 해결합니다.
+
 ---
 
 ## 4. 향후 보안 및 아키텍처 개선 과제 (Future Improvements)

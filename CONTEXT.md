@@ -50,6 +50,7 @@
 | **Local Changes** | `src/*` | **Security (XSS)** | 게시글 제목, 본문, 작성자 출력 시점에 HTML Entity Encoding(`htmlEscape`)을 적용하여 세션/브라우저 상태와 관계없이 Stored XSS 공격면을 원천 차단하는 이중 방어 패치 적용 |
 | **Local Changes** | [session_manager.hpp](file:///c:/Projects/Bartimaeus_app/src/services/session_manager.hpp), [helpers.hpp](file:///c:/Projects/Bartimaeus_app/src/helpers.hpp) | **Security (CSPRNG)** | 세션 ID 및 CSRF 토큰 생성 엔진을 취약한 `std::mt19937`에서 OpenSSL `RAND_bytes` 기반 CSPRNG로 패치하여 예측 가능성을 완전히 배제하고 엔트로피를 256비트로 확장. 또한 `helpers.hpp` 내의 한글 주석을 영문으로 치환하여 MSVC C4819 컴파일 경고 해결 |
 | **`c06d93e`** | [main.cpp](file:///c:/Projects/Bartimaeus_app/src/main.cpp), [memory_exhaustion.py](file:///c:/Projects/Bartimaeus_app/Ochlos/scripts/memory_exhaustion.py) | **Security (DoS)** | macOS/Linux 호환을 위한 `setrlimit` 기반 메모리 할당 제한(RLIMIT_AS) 및 `mach_task_self()` Resident/Footprint 메모리 측정 구현. 공격 실습용 Python DoS 스크립트 작성 및 서버 메모리 제한을 128MB에서 35MB로 조정하여 DoS 취약점 증명 환경 마련 |
+| **Local Changes** | `src/*` | **Security (Hardening)** | C++ 백그라운드 GC 스레드(std::thread)를 도입하여 만료된 세션 및 로그인 실패 이력을 10초 주기로 청소하고, 로그인 진입로(handleLogin)의 사용자명 최대 길이(32자) 선제 입력값 검증 추가. 이진 탐색 기법을 이용한 공격 페이로드 최적화 및 방어 검증 완료 |
 
 ---
 
