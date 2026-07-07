@@ -65,10 +65,18 @@ public:
         auto username = req.get_param_value("username");
         auto password = req.get_param_value("password");
 
+        //
         if (username.empty() || password.empty()) {
             res.status = 400;
             res.set_content(R"({"status":"error", "message":"Username and password are required"})",
                             "application/json");
+            return;
+        }
+
+        // Defense DoS (ex. memory exhaustion). limit length of username
+        if (!isValidUsername(username)) {
+            res.status = 400;
+            res.set_content(R"({"status":"error", "message":"Invalid username format"})", "application/json");
             return;
         }
 
