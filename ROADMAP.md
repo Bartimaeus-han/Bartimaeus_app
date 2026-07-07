@@ -48,6 +48,7 @@ graph TD
 
 ### 📅 Phase 2: 전방위 인프라 구축 (Infrastructure Hardening)
 *   Docker/Kubernetes 기반 컨테이너 환경 구축 및 네트워크 격리(VPC/Subnet 설계)
+*   **서버 최전방 방어선(Reverse Proxy & WAF) 구축**: Nginx와 ModSecurity WAF(웹 애플리케이션 방화벽)를 연동하여 SQLi, XSS, 무차별 대입 및 대량 DoS 트래픽을 웹 서버 앞단에서 선제 차단하는 경계 보안 구현
 *   SSL/TLS 인증서 자동 갱신 및 주요 정보통신기반시설 가이드라인 기반 OS/웹서버 설정 보안 적용
 
 ### 📅 Phase 3: 블루팀 구축 (Detection & Response)

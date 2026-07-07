@@ -123,4 +123,18 @@ public:
         std::lock_guard<std::mutex> lock(session_mutex_);
         sessions_.erase(session_id);
     }
+
+    // Collect and release expired sessions
+    void cleanupExpiredSessions() {
+        std::lock_guard<std::mutex> lock(session_mutex_);
+        auto now = std::chrono::system_clock::now();
+
+        for (auto it = sessions_.begin(); it != sessions_.end();) {
+            if (now > it->second.expires_at) {
+                it = sessions_.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
 };

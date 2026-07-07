@@ -7,9 +7,11 @@
 #include "services/login_limiter.hpp"   // Login limiter header
 #include "services/session_manager.hpp" // Session manager header
 #include <argon2.h>                     // for Argon2 hasing header
+#include <atomic>                       // For safe shared state flag between threads
 #include <csignal>                      // for signal processing
 #include <httplib.h>
 #include <iostream>
+#include <thread> // For starting background thread
 
 #if defined(_WIN32)
 #include <psapi.h> // Process memory information API
@@ -282,19 +284,48 @@ int main() {
                    board_controller.handleDeletePost(req, res, ctx);
                }));
 
-    std::cout
-        << "========================================================" << std::endl;
+    std::cout << "========================================================" << std::endl;
     std::cout << " Secure Web Server is starting on https://localhost:9090" << std::endl;
     printMemoryUsage();
     std::cout << "========================================================" << std::endl;
 
+    // Start background GC(Garbage Collector) thread
+    std::atomic<bool> gc_running{true}; // garbage collector running
+    std::thread gc_thread([&gc_running, &session_manager, &login_limiter]() {
+        while (gc_running) {
+            // Sleep for 10 seconds checking stop flag periodically every 1 second
+            for (int i = 0; i < 10 && gc_running; ++i) {
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+            }
+
+            if (!gc_running)
+                break;
+
+            // Call clean-up functions for expired sessions and failed attempts
+            session_manager.cleanupExpiredSessions();
+            login_limiter.cleanupExpiredAttempts();
+        }
+    });
+
     if (!svr.listen("0.0.0.0", 9090)) {
         std::cerr << "Failed to start server!" << std::endl;
+        // Stop the thread to prevent it from becoming a zombie on startup failure
+        gc_running = false;
+
+        if (gc_thread.joinable()) {
+            gc_thread.join();
+        }
         return 1;
     }
 
     // When server loop stopped, code flow under the this line
     std::cout << "Web Server stopped safely." << std::endl;
+
+    // Wait until the GC thread terminates completely and safely
+    gc_running = false;
+    if (gc_thread.joinable()) {
+        gc_thread.join(); // Join and wait until the thread completes
+    }
 
     return 0; // in this point, every destructor run
 }

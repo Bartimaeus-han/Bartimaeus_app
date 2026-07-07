@@ -83,4 +83,18 @@ public:
         std::lock_guard<std::mutex> lock(limiter_mutex_);
         attempts_.erase(username);
     }
+
+    // Collect and release expired failed attempts
+    void cleanupExpiredAttempts() {
+        std::lock_guard<std::mutex> lock(limiter_mutex_);
+        auto now = std::chrono::system_clock::now();
+
+        for (auto it = attempts_.begin(); it != attempts_.end();) {
+            if (now >= it->second.lockout_until && (now - it->second.last_fail_time) >= COOLDOWN_DURATION) {
+                it = attempts_.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
 };
