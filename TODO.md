@@ -6,8 +6,8 @@
 
 ## 📌 보안 강화 작업 목록 (Checklist)
 
-- [ ] **SQLite3 동시성 제어 및 트랜잭션 경합 방지 (THREAT-04)**
-    - [ ] `AuthService` 및 `BoardService` 생성 시 SQLite DB 연결 직후 `sqlite3_busy_timeout` 설정 주입 (예: 5000ms 대기 설정)
+- [/] **SQLite3 동시성 제어 및 트랜잭션 경합 방지 (THREAT-04)**
+    - [/] `AuthService` 및 `BoardService` 생성 시 SQLite DB 연결 직후 `sqlite3_busy_timeout` 설정 주입 (예: 5000ms 대기 설정)
     - [ ] 트랜잭션 충돌 시의 무조건적인 HTTP 500 장애 발생률을 0%로 줄어들게 하는 지연 응답 전략 런타임 검증
 
 - [ ] **비밀번호 복잡도 유효성 검증 규칙 도입 (THREAT-01)**
