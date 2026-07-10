@@ -35,6 +35,9 @@ public:
             std::cerr << "[DB Error] Cannot open database: " << sqlite3_errmsg(db) << std::endl;
         } else {
             std::cout << "[DB Success] Connected to server.db successfully!" << std::endl;
+
+            // To prevent thread exhaustion DoS
+            sqlite3_busy_timeout(db, 1000);
         }
 
         char *errMsg = nullptr;

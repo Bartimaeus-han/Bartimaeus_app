@@ -29,6 +29,10 @@ public:
         // rc : Return Code, success or fail (SQLITE_OK, SQLITE_CNANTOPEN, SQLITE_PERM...)
         if (rc != SQLITE_OK)
             std::cerr << "[DB Error] Cannot open database for board: " << sqlite3_errmsg(db) << std::endl;
+        else {
+            // To prevent thread exhaustion DoS
+            sqlite3_busy_timeout(db, 1000);
+        }
 
         char *errMsg = nullptr;
 

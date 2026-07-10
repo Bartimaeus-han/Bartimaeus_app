@@ -105,7 +105,7 @@ void printMemoryUsage() {
 
 int main() {
     // Limit the server process memory to 128MB
-    limitProcessMemory(15);
+    limitProcessMemory(128);
 
     // Initialize HTTPS server by setting paths to self-signed certificate and private key files (/certs/cert.pem&key.pem)
     httplib::SSLServer svr("./certs/cert.pem", "./certs/key.pem");
