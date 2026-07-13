@@ -53,8 +53,8 @@
 | **Local Changes** | [auth_service.hpp](file:///c:/Projects/Bartimaeus_app/src/services/auth_service.hpp), [board_service.hpp](file:///c:/Projects/Bartimaeus_app/src/services/board_service.hpp), [sqlite_concurrency.py](file:///c:/Projects/Bartimaeus_app/Ochlos/scripts/sqlite_concurrency.py) | **Security (Hardening)** | SQLite3 동시성 경합 취약점(THREAT-04)을 다중 서비스 동시 타격(가입 & 글쓰기 루프)으로 자연적 유도 검증 성공 후, 각 서비스 생성자에 `sqlite3_busy_timeout(db, 1000)` 대기 설정을 주입해 락 충돌 장애율을 0%로 완벽 방어 |
 
 | **Local Changes** | `src/*` | **Security (Hardening)** | C++ 백그라운드 GC 스레드(std::thread)를 도입하여 만료된 세션 및 로그인 실패 이력을 10초 주기로 청소하고, 로그인 진입로(handleLogin)의 사용자명 최대 길이(32자) 선제 입력값 검증 추가. 이진 탐색 기법을 이용한 공격 페이로드 최적화 및 방어 검증 완료 |
-| **Local Changes** | [main.cpp](file:///Users/bartimaeus/Projects/Bartimaeus_app/src/main.cpp) | **Refactor (Shutdown)** | C++20 `std::jthread` 및 `std::stop_token`을 적용하여 백그라운드 GC 스레드의 수명 주기를 RAII로 보장하고, `main` 함수 전역에 try-catch 예외 처리 블록을 씌워 예외 상황에서의 안전한 서버 종료 및 리소스 자동 해제 구조 구축 완료 |
-| **Local Changes** | [main.cpp](file:///Users/bartimaeus/Projects/Bartimaeus_app/src/main.cpp) | **Security (Hardening)** | HTTP 라우팅 핸들러 내부 예외 격리를 위해 `set_exception_handler`를 등록하고, 예외 발생 시 개별 요청 수준에서 500 에러와 임의 에러 추적 ID(Tracking ID)를 반환하도록 예외 격리(Isolating Exceptions) 처리 완료 |
+| **`d1422c9`** | [main.cpp](file:///Users/bartimaeus/Projects/Bartimaeus_app/src/main.cpp) | **Refactor (Shutdown)** | C++20 `std::jthread` 및 `std::stop_token`을 적용하여 백그라운드 GC 스레드의 수명 주기를 RAII로 보장하고, `main` 함수 전역에 try-catch 예외 처리 블록을 씌워 예외 상황에서의 안전한 서버 종료 및 리소스 자동 해제 구조 구축 완료 |
+| **`d1422c9`** | [main.cpp](file:///Users/bartimaeus/Projects/Bartimaeus_app/src/main.cpp) | **Security (Hardening)** | HTTP 라우팅 핸들러 내부 예외 격리를 위해 `set_exception_handler`를 등록하고, 예외 발생 시 개별 요청 수준에서 500 에러와 임의 에러 추적 ID(Tracking ID)를 반환하도록 예외 격리(Isolating Exceptions) 처리 완료 |
 
 ---
 
