@@ -6,6 +6,11 @@
 
 ## 📌 보안 강화 작업 목록 (Checklist)
 
+- [ ] **SQLite3에서 MySQL로 데이터베이스 마이그레이션**
+    - [ ] CMakeLists.txt 내 mysqlclient 라이브러리 연동 (Link mysqlclient library in CMakeLists.txt)
+    - [ ] db_queries.hpp 내 SQL 스키마 및 쿼리 MySQL 호환성 튜닝 (Tune SQL schemas and queries for MySQL compatibility in db_queries.hpp)
+    - [ ] MySQL Connection Pool (db_manager.hpp) 구현 (Implement MySQL Connection Pool in db_manager.hpp)
+    - [ ] AuthService 및 BoardService 내 sqlite3 API를 MySQL C API로 포팅 (Port sqlite3 APIs to MySQL C APIs in AuthService and BoardService)
 - [ ] **비밀번호 복잡도 유효성 검증 규칙 도입 (THREAT-01)**
-    - [ ] `AuthService::signUp` 시 비밀번호 최소 길이(예: 8자 이상) 및 구성 조건(대소문자, 숫자, 특수문자 조합) 정규식 검사 함수 추가
-    - [ ] 검증 실패 시 오류 메시지 프론트엔드로 전달 및 사용자 테스트용 옵션 유지 정책 수립 (개발 편의를 위해 최종 단계 진행)
+    - [ ] `AuthService::signUp` 시 비밀번호 최소 길이 및 구성 조건 정규식 검사 함수 추가 (Add password length and pattern validation in AuthService::signUp)
+    - [ ] 검증 실패 시 오류 메시지 프론트엔드로 전달 및 예외 정책 수립 (Pass error messages to frontend and establish policy exceptions)
