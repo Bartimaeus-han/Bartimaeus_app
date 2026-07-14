@@ -19,42 +19,42 @@
 
 | 커밋 해시 | 관련 영역 / 파일 | 작업 구분 | 주요 변경 사항 및 보안 방어 맥락 (Security Context) |
 | :--- | :--- | :--- | :--- |
-| **`a28e24b`** | [main.cpp](file:///c:/Projects/Bartimaeus_app/src/main.cpp) | **Feat (최초 생성)** | `cpp-httplib`를 이용한 웹 서버 기초 뼈대 구축 및 `/signup`, `/login`, `/api/users` 라우트 최초 정의 |
+| **`a28e24b`** | [main.cpp](src/main.cpp) | **Feat (최초 생성)** | `cpp-httplib`를 이용한 웹 서버 기초 뼈대 구축 및 `/signup`, `/login`, `/api/users` 라우트 최초 정의 |
 | **`5fb82bc`** | `public/login.html` | **Feat** | 정적 리소스 마운트 폴더 내 로그인 페이지 신설 |
 | **`b074924`** | `src/*`, `public/` | **Bug (취약성)** | 회원가입/로그인 기능 및 관리자 페이지 추가. 당시는 패스워드 평문 전송/저장, 사용자 ID 기반 무방비 쿠키 검증 등 대다수 취약점이 방치된 초기 버전 |
-| **`d5182f8`** | [main.cpp](file:///c:/Projects/Bartimaeus_app/src/main.cpp) | **Refactor** | `SIGINT(Ctrl+C)` 시그널 처리를 도입하여 안전하게 서버 루프를 중지시키는 **Graceful Shutdown** 구현 |
+| **`d5182f8`** | [main.cpp](src/main.cpp) | **Refactor** | `SIGINT(Ctrl+C)` 시그널 처리를 도입하여 안전하게 서버 루프를 중지시키는 **Graceful Shutdown** 구현 |
 | **`d6614db`** | `src/db_queries.hpp` | **Feat** | SQLite3 연동 시작 및 애플리케이션 기동 시 `users` 테이블 자동 생성 로직 설계 |
 | **`20e6938`** | `src/db_queries.hpp` | **Refactor** | 기존 인메모리 방식 데이터베이스(`user_db`)를 완전히 걷어내고 실물 파일 기반 SQLite3 연동 완성 |
 | **`984a0e7`** | `public/index.html` | **Feat** | 대시보드 내 관리자 페이지(admin) 진입 버튼을 로그인 유저 중 `admin` 역할을 가진 계정에만 동적 표시하도록 제어 |
-| **`e1fee2b`** | [auth_service.hpp](file:///c:/Projects/Bartimaeus_app/src/services/auth_service.hpp) | **Security (SQLi)** | 사용자 입력값 우회 취약점 방어. `sqlite3_prepare_v2` 및 `sqlite3_bind_text`를 적용해 **Prepared Statements** 구현하여 **SQL Injection 원천 차단** |
+| **`e1fee2b`** | [auth_service.hpp](src/services/auth_service.hpp) | **Security (SQLi)** | 사용자 입력값 우회 취약점 방어. `sqlite3_prepare_v2` 및 `sqlite3_bind_text`를 적용해 **Prepared Statements** 구현하여 **SQL Injection 원천 차단** |
 | **`4b70cc2`** | `EXCEPTIONS.md` | **Docs** | 예외 처리 표준 및 에러 대응을 위한 가이드 문서 추가 |
 | **`727f967`** | `PROJECT_GUIDELINES.md`| **Docs** | AI 개발 협업 가이드라인 최초 작성 |
-| **`a081dc4`** | [main.cpp](file:///c:/Projects/Bartimaeus_app/src/main.cpp) | **Security (Crypto)** | 패스워드를 DB 저장/비교 시 **SHA256 해시 암호화** 적용. 로그인 여부에 따라 `/index.html` 또는 `/login.html`로 루트 `/` 분기 및 리다이렉트 구조 도입 |
-| **`cf43543`** | [session_manager.hpp](file:///c:/Projects/Bartimaeus_app/src/services/session_manager.hpp) | **Security (Session)** | 단순 쿠키 검증에 의한 권한 탈취 취약점 해결. `SessionManager` 설계 후 난수 토큰 기반의 화이트리스트 세션 검증 도입, 세션 쿠키에 `HttpOnly`를 심어 **Session Hijacking/Fixation 방어** |
-| **`bf00409`** | [auth_service.hpp](file:///c:/Projects/Bartimaeus_app/src/services/auth_service.hpp) | **Security (Info)** | `/api/users` 데이터 조회 시 사용자 비밀번호 해시 필드(`password`)가 외부로 흘러나가지 않도록 조회 쿼리 및 구조체 바인딩에서 패스워드 제외 조치 |
-| **`8592d76`** | [main.cpp](file:///c:/Projects/Bartimaeus_app/src/main.cpp) | **Chore (Build)** | macOS/Unix 지원을 위해 하드코딩된 Windows 툴체인 경로 제거 및 LF 개행 문자 강제. 서버 실행 기본 포트를 `8080`에서 **`9090`**으로 변경 |
-| **`5b122ed`** | [auth_controller.hpp](file:///c:/Projects/Bartimaeus_app/src/controllers/auth_controller.hpp) | **Security (XSS)** | 사용자 입력 정보 및 JSON 응답 데이터 유출 제어를 위해 C++ 레벨에서 **`jsonEscape`** 필터링 적용 (Stored XSS 1차 대응) |
+| **`a081dc4`** | [main.cpp](src/main.cpp) | **Security (Crypto)** | 패스워드를 DB 저장/비교 시 **SHA256 해시 암호화** 적용. 로그인 여부에 따라 `/index.html` 또는 `/login.html`로 루트 `/` 분기 및 리다이렉트 구조 도입 |
+| **`cf43543`** | [session_manager.hpp](src/services/session_manager.hpp) | **Security (Session)** | 단순 쿠키 검증에 의한 권한 탈취 취약점 해결. `SessionManager` 설계 후 난수 토큰 기반의 화이트리스트 세션 검증 도입, 세션 쿠키에 `HttpOnly`를 심어 **Session Hijacking/Fixation 방어** |
+| **`bf00409`** | [auth_service.hpp](src/services/auth_service.hpp) | **Security (Info)** | `/api/users` 데이터 조회 시 사용자 비밀번호 해시 필드(`password`)가 외부로 흘러나가지 않도록 조회 쿼리 및 구조체 바인딩에서 패스워드 제외 조치 |
+| **`8592d76`** | [main.cpp](src/main.cpp) | **Chore (Build)** | macOS/Unix 지원을 위해 하드코딩된 Windows 툴체인 경로 제거 및 LF 개행 문자 강제. 서버 실행 기본 포트를 `8080`에서 **`9090`**으로 변경 |
+| **`5b122ed`** | [auth_controller.hpp](src/controllers/auth_controller.hpp) | **Security (XSS)** | 사용자 입력 정보 및 JSON 응답 데이터 유출 제어를 위해 C++ 레벨에서 **`jsonEscape`** 필터링 적용 (Stored XSS 1차 대응) |
 | **`d9ccc64`** | `CMakeLists.txt` | **Chore (Build)** | CMake 빌드 구성 및 크로스플랫폼 타겟 결과물 빌드 구조 최적화 |
-| **`7f3e9d2`** | [main.cpp](file:///c:/Projects/Bartimaeus_app/src/main.cpp) | **Security (Headers)** | HTTP 응답 시 **보안 헤더 일괄 탑재** (`Content-Security-Policy`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `X-XSS-Protection: 1; mode=block`) |
+| **`7f3e9d2`** | [main.cpp](src/main.cpp) | **Security (Headers)** | HTTP 응답 시 **보안 헤더 일괄 탑재** (`Content-Security-Policy`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `X-XSS-Protection: 1; mode=block`) |
 | **`5b737d4`** | `public/*.js`, `public/*.html` | **Security (CSP)** | 인라인 스크립트를 완전히 걷어내고 별도 `.js` 정적 파일로 스크립트를 분리하여 **CSP(콘텐츠 보안 정책)와의 호환성 확보 및 XSS 공격 차단** |
 | **`4a2b212`** | `src/*` | **Refactor** | 기존에 남아있던 취약한 쿼리 관련 잔재 파일 정리 및 `src/controllers`, `src/services` 형태의 패키지 아키텍처 재정립 |
 | **`5e759c5`** | `CMakeLists.txt` | **Refactor** | 크로스 컴파일 호환성 강화를 위해 빌드 시스템 내부 스크립트 수정 및 링커 설정 보강 |
-| **Local Changes** | `src/*`, `CMakeLists.txt` | **Security (RateLimit)** | 자동화 무차별 대입 공격(Brute Force) 방어를 위해 ID 기반의 로그인 시도 차단 정책(`LoginLimiter`) 도입 및 `AuthController` / `main.cpp` 연동 |
-| **Local Changes** | `src/*`, `public/js/*` | **Security (CSRF)** | 동적 세션 토큰 방식의 Anti-CSRF 방어를 도입하여 세션 정보 반환(`/api/me`) 시 토큰을 발급하고, 로그아웃(`/logout`) POST 요청 시 헤더 검증 수행 |
-| **Local Changes** | `src/*`, `public/error.html` | **Security (ErrorPage)** | 상세 에러 정보 유출 방지를 위한 무작위 Error Tracking ID 매핑, 외부 HTML 템플릿 연동, API(/api/*) 경로 JSON 응답 및 이중 로그(콘솔/파일) 기록 적용 |
-| **Local Changes** | [helpers.hpp](file:///c:/Projects/Bartimaeus_app/src/helpers.hpp), [auth_controller.hpp](file:///c:/Projects/Bartimaeus_app/src/controllers/auth_controller.hpp) | **Security (Cookie)** | 쿠키 키 이름 부분 일치 우회 방지를 위해 `;` 구분자 기반 분할 및 공백 trim을 적용한 안전한 쿠키 파싱 구현 및 중복 코드 리팩토링 |
-| **Local Changes** | `src/*`, `CMakeLists.txt` | **Refactor** | 중복되는 세션/CSRF 검증 코드를 공통 횡단 관심사로 통합하기 위해 C++ 함수형 스타일의 보안 미들웨어([middleware.hpp](file:///c:/Projects/Bartimaeus_app/src/middleware.hpp)) 도입 및 컨트롤러 핸들러 슬림화 리팩토링 수행 |
-| **Local Changes** | `src/*`, `public/js/*` | **Refactor (AdminDelete)** | 관리자가 다른 사용자의 글을 삭제할 수 있도록 권한 정책 변경(Option 1) 및 클라이언트 측 confirm() 삭제 재확인 로직 추가 |
-| **Local Changes** | `src/*` | **Security (IN)** | 서비스 계층 및 SQL 수준에서 게시글 삭제 권한 검증 이중화 적용 (Defense in Depth) |
-| **Local Changes** | `src/*`, `CMakeLists.txt` | **Security (Argon2id)** | 패스워드 해싱 알고리즘을 SHA-256에서 Argon2id(32MB, 3-pass)로 업그레이드 완료하고, 로그인 시 레거시 사용자의 해시를 실시간 자동 전환(Lazy Migration)하는 과도기 대응 로직 구현 |
-| **Local Changes** | `src/*` | **Security (XSS)** | 게시글 제목, 본문, 작성자 출력 시점에 HTML Entity Encoding(`htmlEscape`)을 적용하여 세션/브라우저 상태와 관계없이 Stored XSS 공격면을 원천 차단하는 이중 방어 패치 적용 |
-| **Local Changes** | [session_manager.hpp](file:///c:/Projects/Bartimaeus_app/src/services/session_manager.hpp), [helpers.hpp](file:///c:/Projects/Bartimaeus_app/src/helpers.hpp) | **Security (CSPRNG)** | 세션 ID 및 CSRF 토큰 생성 엔진을 취약한 `std::mt19937`에서 OpenSSL `RAND_bytes` 기반 CSPRNG로 패치하여 예측 가능성을 완전히 배제하고 엔트로피를 256비트로 확장. 또한 `helpers.hpp` 내의 한글 주석을 영문으로 치환하여 MSVC C4819 컴파일 경고 해결 |
-| **`c06d93e`** | [main.cpp](file:///c:/Projects/Bartimaeus_app/src/main.cpp), [memory_exhaustion.py](file:///c:/Projects/Bartimaeus_app/Ochlos/scripts/memory_exhaustion.py) | **Security (DoS)** | macOS/Linux 호환을 위한 `setrlimit` 기반 메모리 할당 제한(RLIMIT_AS) 및 `mach_task_self()` Resident/Footprint 메모리 측정 구현. 공격 실습용 Python DoS 스크립트 작성 및 서버 메모리 제한을 128MB에서 35MB로 조정하여 DoS 취약점 증명 환경 마련 |
-| **Local Changes** | [auth_service.hpp](file:///c:/Projects/Bartimaeus_app/src/services/auth_service.hpp), [board_service.hpp](file:///c:/Projects/Bartimaeus_app/src/services/board_service.hpp), [sqlite_concurrency.py](file:///c:/Projects/Bartimaeus_app/Ochlos/scripts/sqlite_concurrency.py) | **Security (Hardening)** | SQLite3 동시성 경합 취약점(THREAT-04)을 다중 서비스 동시 타격(가입 & 글쓰기 루프)으로 자연적 유도 검증 성공 후, 각 서비스 생성자에 `sqlite3_busy_timeout(db, 1000)` 대기 설정을 주입해 락 충돌 장애율을 0%로 완벽 방어 |
+| **`80a23eb`** | `src/*`, `CMakeLists.txt` | **Security (RateLimit)** | 자동화 무차별 대입 공격(Brute Force) 방어를 위해 ID 기반의 로그인 시도 차단 정책(`LoginLimiter`) 도입 및 `AuthController` / `main.cpp` 연동 |
+| **`c2fa066`** | `src/*`, `public/js/*` | **Security (CSRF)** | 동적 세션 토큰 방식의 Anti-CSRF 방어를 도입하여 세션 정보 반환(`/api/me`) 시 토큰을 발급하고, 로그아웃(`/logout`) POST 요청 시 헤더 검증 수행 |
+| **`463e4ee`** | `src/*`, `public/error.html` | **Security (ErrorPage)** | 상세 에러 정보 유출 방지를 위한 무작위 Error Tracking ID 매핑, 외부 HTML 템플릿 연동, API(/api/*) 경로 JSON 응답 및 이중 로그(콘솔/파일) 기록 적용 |
+| **`87a9d31`** | [helpers.hpp](src/helpers.hpp), [auth_controller.hpp](src/controllers/auth_controller.hpp) | **Security (Cookie)** | 쿠키 키 이름 부분 일치 우회 방지를 위해 `;` 구분자 기반 분할 및 공백 trim을 적용한 안전한 쿠키 파싱 구현 및 중복 코드 리팩토링 |
+| **`53e3c7f`** | `src/*`, `CMakeLists.txt` | **Refactor** | 중복되는 세션/CSRF 검증 코드를 공통 횡단 관심사로 통합하기 위해 C++ 함수형 스타일의 보안 미들웨어([middleware.hpp](src/middleware.hpp)) 도입 및 컨트롤러 핸들러 슬림화 리팩토링 수행 |
+| **`825a689`** | `src/*`, `public/js/*` | **Refactor (AdminDelete)** | 관리자가 다른 사용자의 글을 삭제할 수 있도록 권한 정책 변경(Option 1) 및 클라이언트 측 confirm() 삭제 재확인 로직 추가 |
+| **`39449a1`** | `src/*` | **Security (IN)** | 서비스 계층 및 SQL 수준에서 게시글 삭제 권한 검증 이중화 적용 (Defense in Depth) |
+| **`df88187`** | `src/*`, `CMakeLists.txt` | **Security (Argon2id)** | 패스워드 해싱 알고리즘을 SHA-256에서 Argon2id(32MB, 3-pass)로 업그레이드 완료하고, 로그인 시 레거시 사용자의 해시를 실시간 자동 전환(Lazy Migration)하는 과도기 대응 로직 구현 |
+| **`ce7256a`** | `src/*` | **Security (XSS)** | 게시글 제목, 본문, 작성자 출력 시점에 HTML Entity Encoding(`htmlEscape`)을 적용하여 세션/브라우저 상태와 관계없이 Stored XSS 공격면을 원천 차단하는 이중 방어 패치 적용 |
+| **`a4c6464`** | [session_manager.hpp](src/services/session_manager.hpp), [helpers.hpp](src/helpers.hpp) | **Security (CSPRNG)** | 세션 ID 및 CSRF 토큰 생성 엔진을 취약한 `std::mt19937`에서 OpenSSL `RAND_bytes` 기반 CSPRNG로 패치하여 예측 가능성을 완전히 배제하고 엔트로피를 256비트로 확장. 또한 `helpers.hpp` 내의 한글 주석을 영문으로 치환하여 MSVC C4819 컴파일 경고 해결 |
+| **`c06d93e`** | [main.cpp](src/main.cpp), [memory_exhaustion.py](Ochlos/scripts/memory_exhaustion.py) | **Security (DoS)** | macOS/Linux 호환을 위한 `setrlimit` 기반 메모리 할당 제한(RLIMIT_AS) 및 `mach_task_self()` Resident/Footprint 메모리 측정 구현. 공격 실습용 Python DoS 스크립트 작성 및 서버 메모리 제한을 128MB에서 35MB로 조정하여 DoS 취약점 증명 환경 마련 |
+| **`b17da27`** | [auth_service.hpp](src/services/auth_service.hpp), [board_service.hpp](src/services/board_service.hpp), [sqlite_concurrency.py](Ochlos/scripts/sqlite_concurrency.py) | **Security (Hardening)** | SQLite3 동시성 경합 취약점(THREAT-04)을 다중 서비스 동시 타격(가입 & 글쓰기 루프)으로 자연적 유도 검증 성공 후, 각 서비스 생성자에 `sqlite3_busy_timeout(db, 1000)` 대기 설정을 주입해 락 충돌 장애율을 0%로 완벽 방어 |
 
-| **Local Changes** | `src/*` | **Security (Hardening)** | C++ 백그라운드 GC 스레드(std::thread)를 도입하여 만료된 세션 및 로그인 실패 이력을 10초 주기로 청소하고, 로그인 진입로(handleLogin)의 사용자명 최대 길이(32자) 선제 입력값 검증 추가. 이진 탐색 기법을 이용한 공격 페이로드 최적화 및 방어 검증 완료 |
-| **`d1422c9`** | [main.cpp](file:///Users/bartimaeus/Projects/Bartimaeus_app/src/main.cpp) | **Refactor (Shutdown)** | C++20 `std::jthread` 및 `std::stop_token`을 적용하여 백그라운드 GC 스레드의 수명 주기를 RAII로 보장하고, `main` 함수 전역에 try-catch 예외 처리 블록을 씌워 예외 상황에서의 안전한 서버 종료 및 리소스 자동 해제 구조 구축 완료 |
-| **`d1422c9`** | [main.cpp](file:///Users/bartimaeus/Projects/Bartimaeus_app/src/main.cpp) | **Security (Hardening)** | HTTP 라우팅 핸들러 내부 예외 격리를 위해 `set_exception_handler`를 등록하고, 예외 발생 시 개별 요청 수준에서 500 에러와 임의 에러 추적 ID(Tracking ID)를 반환하도록 예외 격리(Isolating Exceptions) 처리 완료 |
+| **`b8ade32`** | `src/*` | **Security (Hardening)** | C++ 백그라운드 GC 스레드(std::thread)를 도입하여 만료된 세션 및 로그인 실패 이력을 10초 주기로 청소하고, 로그인 진입로(handleLogin)의 사용자명 최대 길이(32자) 선제 입력값 검증 추가. 이진 탐색 기법을 이용한 공격 페이로드 최적화 및 방어 검증 완료 |
+| **`d1422c9`** | [main.cpp](src/main.cpp) | **Refactor (Shutdown)** | C++20 `std::jthread` 및 `std::stop_token`을 적용하여 백그라운드 GC 스레드의 수명 주기를 RAII로 보장하고, `main` 함수 전역에 try-catch 예외 처리 블록을 씌워 예외 상황에서의 안전한 서버 종료 및 리소스 자동 해제 구조 구축 완료 |
+| **`d1422c9`** | [main.cpp](src/main.cpp) | **Security (Hardening)** | HTTP 라우팅 핸들러 내부 예외 격리를 위해 `set_exception_handler`를 등록하고, 예외 발생 시 개별 요청 수준에서 500 에러와 임의 에러 추적 ID(Tracking ID)를 반환하도록 예외 격리(Isolating Exceptions) 처리 완료 |
 
 ---
 
