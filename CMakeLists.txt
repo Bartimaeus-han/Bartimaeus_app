@@ -30,16 +30,17 @@ add_library(argon2 STATIC
 )
 
 # 2-1. Set header paths for Argon2 internal compilation
+# Only using in build
 target_include_directories(argon2 PRIVATE
     3rdparty/argon2/src
     3rdparty/argon2/src/blake2
 )
 
 # 2-2. Expose include path for external usage of Argon2
+# PUBLIC : external 
 target_include_directories(argon2 PUBLIC
     3rdparty/argon2/include
 )
-
 
 
 # This method have 'supply chain attack vulnerabilities' 
@@ -64,6 +65,27 @@ elseif(WIN32)
 endif()
 find_package(OpenSSL REQUIRED)
 
+# 3. Search for MySQL client library
+find_path(MYSQL_INCLUDE_DIR mysql.h
+    HINTS
+        "/opt/homebrew/opt/mysql/include/mysql"
+        "C:/Users/Bartimaeus/anaconda3/Library/include/mysql"
+        "C:/Users/Bartimaeus/anaconda3/Library/include"
+        "C:/Program Files/MySQL/MySQL Server 8.0/include"    
+)
+
+find_library(MYSQL_LIBRARIES
+    NAMES mysqlclient libmysql
+    HINTS
+        "/opt/homebrew/opt/mysql/lib"
+        "C:/Users/Bartimaeus/anaconda3/Library/lib"
+        "C:/Program Files/MySQL/MySQL Server 8.0/lib"
+)
+
+if(NOT MYSQL_INCLUDE_DIR OR NOT MYSQL_LIBRARIES)
+    message(FATAL_ERROR "MySQL client library not found. Please install MySQL client developer package.")
+endif()
+
 # Create execute file
 # `SecureWebServer` is final execute file (in Winodws, .exe)
 # In CMake, `SecureWebServer` called **Target**
@@ -73,10 +95,17 @@ add_executable(SecureWebServer ${SOURCES}
     src/services/login_limiter.hpp
     src/services/board_service.hpp
     src/controllers/board_controller.hpp
-    src/controllers/auth_controller.hpp)
+    src/controllers/auth_controller.hpp
+    src/services/db_manager.hpp)
 
 # Link OpenSSL and cpp-httplib libraries + Argon2
-target_link_libraries(SecureWebServer PRIVATE httplib::httplib OpenSSL::SSL OpenSSL::Crypto argon2)
+target_link_libraries(SecureWebServer PRIVATE 
+    httplib::httplib 
+    OpenSSL::SSL 
+    OpenSSL::Crypto 
+    argon2
+    ${MYSQL_LIBRARIES}
+)
 
 # Enable OpenSSL support macro definition
 target_compile_definitions(SecureWebServer PRIVATE CPPHTTPLIB_OPENSSL_SUPPORT)
@@ -85,4 +114,5 @@ target_include_directories(SecureWebServer PRIVATE
     src
     3rdparty/sqlite3
     3rdparty/picosha2
+    ${MYSQL_INCLUDE_DIR}
 )

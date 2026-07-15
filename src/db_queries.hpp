@@ -4,11 +4,11 @@ namespace Queries {
 // Create table query
 constexpr const char *CREATE_USERS_TABLE =
     "CREATE TABLE IF NOT EXISTS users("
-    "username TEXT PRIMARY KEY, "
-    "password TEXT NOT NULL, "
-    "salt TEXT," // To store salt value
-    "role TEXT NOT NULL DEFAULT 'USER'"
-    ");";
+    "username VARCHAR(255) PRIMARY KEY, "
+    "password VARCHAR(255) NOT NULL, "
+    "salt VARCHAR(255),"
+    "role VARCHAR(50) NOT NULL DEFAULT 'USER'"
+    ")";
 
 // ========================================================
 // Add secure query constants below (Defense SQL Injeciton)
@@ -39,11 +39,11 @@ constexpr const char *SECURE_SELECT_USER_ROLE = "SELECT role FROM users WHERE us
 // +----+----------------------+---------------------------------+--------+---------------------+
 constexpr const char *CREATE_POSTS_TABLE =
     "CREATE TABLE IF NOT EXISTS posts("
-    "id INTEGER PRIMARY KEY AUTOINCREMENT, "
-    "title TEXT NOT NULL, "
+    "id INT AUTO_INCREMENT PRIMARY KEY, "
+    "title VARCHAR(255) NOT NULL, "
     "content TEXT NOT NULL, "
-    "author TEXT NOT NULL, "
-    "created_at TEXT DEFAULT CURRENT_TIMESTAMP"
+    "author VARCHAR(255) NOT NULL, "
+    "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
     ");";
 
 // Update query for  password algorithm migration on login
