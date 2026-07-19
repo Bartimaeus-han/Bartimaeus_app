@@ -1,4 +1,5 @@
 #pragma once              // prevents header files from being included multiple times
+#include "db_manager.hpp" // Include MySQL Connection Pool Manager
 #include "db_queries.hpp" // Include SQL query header
 #include "helpers.hpp"
 #include "picosha2.h" // Include SHA-256 hashing library
@@ -18,111 +19,105 @@ struct User {
     std::string role;     // role field
 };
 
+// RAII Guard
+struct DbConnectionGuard {
+    MYSQL *conn = nullptr;
+    DbConnectionGuard() {
+        conn = DbManager::getInstance().getConnection();
+    }
+    ~DbConnectionGuard() {
+        if (conn) {
+            DbManager::getInstance().releaseConnection(conn);
+        }
+    }
+};
+
 class AuthService {
 private:
     // Virtual In-Memory DB
     std::unordered_map<std::string, User> user_db; // username : User{username, password}
     std::mutex db_mutex;                           // Simultaneous access control DB in multi-thread env
 
-    sqlite3 *db = nullptr;
-
 public:
     // When Program started, open DB file
     AuthService() {
-        // create/connect local file database named server.db
-        int rc = sqlite3_open("server.db", &db);
-        if (rc != SQLITE_OK) {
-            std::cerr << "[DB Error] Cannot open database: " << sqlite3_errmsg(db) << std::endl;
-        } else {
-            std::cout << "[DB Success] Connected to server.db successfully!" << std::endl;
+        DbConnectionGuard guard;
+        MYSQL *conn = guard.conn;
 
-            // To prevent thread exhaustion DoS
-            sqlite3_busy_timeout(db, 1000);
+        if (!conn) {
+            std::cerr << "[DB Error] Cannot acquire connection for initialization." << std::endl;
+            return;
         }
 
-        char *errMsg = nullptr;
-
-        // Create table using the separated constant
-        rc = sqlite3_exec(db, Queries::CREATE_USERS_TABLE, nullptr, nullptr, &errMsg);
-
-        if (rc != SQLITE_OK) {
-            std::cerr << "[DB Error] Table create failed: " << (errMsg ? errMsg : "unknown") << std::endl;
-            sqlite3_free(errMsg); // Free error message memory
+        // Create MySQL compatible table
+        if (mysql_real_query(conn, Queries::CREATE_USERS_TABLE, strlen(Queries::CREATE_USERS_TABLE)) != 0) {
+            std::cerr << "[DB Error] Table create failed: " << mysql_error(conn) << std::endl;
         } else {
             std::cout << "[DB Success] 'users' table is ready (checked/created)." << std::endl;
         }
 
-        sqlite3_exec(db, "ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'USER';", nullptr, nullptr, nullptr);
-
-        sqlite3_exec(db, "UPDATE users SET role = 'ADMIN' WHERE username = 'admin';", nullptr, nullptr, nullptr);
+        // Update admin account privilge
+        mysql_real_query(conn, "UPDATE users SET role = 'ADMIN' WHERE username = 'admin';", strlen("UPDATE users SET role = 'ADMIN' WHERE username = 'admin'"));
     }
 
-    ~AuthService() {
-        if (db) {
-            sqlite3_close(db);
-            std::cout << "[DB Success] Database connection closed." << std::endl;
-        }
-    }
+    // Connection pool is managed globally, so bypass individual service cleanup here.
+    ~AuthService() {}
 
     // Secure sign up logic
     bool signUp(const std::string &username, const std::string &password) {
-        std::lock_guard<std::mutex> lock(db_mutex);
+        DbConnectionGuard guard;  // Create connection pool guard
+        MYSQL *conn = guard.conn; // Acquire connection pointer
 
-        sqlite3_stmt *check_stmt = nullptr;
-
-        // Prepare secure query for duplicate ID check
-        // rc(Return Code)
-        int rc = sqlite3_prepare_v2(db, Queries::SECURE_CHECK_USER, -1, &check_stmt, nullptr);
-        // SQLITE_OK : sqlite's successfult result
-        if (rc != SQLITE_OK) {
-            std::cerr << "[SignUp Fail] Prepare check failed: " << sqlite3_errmsg(db) << std::endl;
+        if (!conn) {
             return false;
         }
 
-        // Parameter binding
-        // SQLITE_TRANSIENT : tells SQLite to copy the string
-        sqlite3_bind_text(check_stmt, 1, username.c_str(), -1, SQLITE_TRANSIENT);
+        // Initialize and prepare duplicate ID check statement
+        MYSQL_STMT *check_stmt = mysql_stmt_init(conn);
+        if (!check_stmt) {
+            std::cerr << "[SignUp Fail] Statement initialization failed: " << mysql_error(conn) << std::endl;
+            return false;
+        }
 
-        // Execute query and check for duplicate
-        // SQLITE_ROW : return data
-        if (sqlite3_step(check_stmt) == SQLITE_ROW) {
+        if (mysql_stmt_prepare(check_stmt, Queries::SECURE_CHECK_USER, strlen(Queries::SECURE_CHECK_USER)) != 0) {
+            std::cerr << "[SignUp Fail] Prepare check failed: " << mysql_stmt_error(check_stmt) << std::endl;
+            return false;
+        }
+
+        // 2. Parameter binding setup and mapping
+        MYSQL_BIND check_bind[1];
+        std::memset(check_bind, 0, sizeof(check_bind));
+
+        check_bind[0].buffer_type = MYSQL_TYPE_STRING;
+        check_bind[0].buffer = (char *)username.c_str();
+        check_bind[0].buffer_length = username.length();
+
+        if (mysql_stmt_bind_param(check_stmt, check_bind) != 0) {
+            std::cerr << "[SignUp Fail] Bind parameter failed: " << mysql_stmt_error(check_stmt) << std::endl;
+            mysql_stmt_close(check_stmt);
+            return false;
+        }
+
+        // 3. Execute query and verify duplication
+        if (mysql_stmt_execute(check_stmt) != 0) {
+            std::cerr << "[SignUp Fail] Execute check failed: " << mysql_stmt_error(check_stmt) << std::endl;
+            mysql_stmt_close(check_stmt);
+            return false;
+        }
+
+        if (mysql_stmt_store_result(check_stmt) != 0) {
+            std::cerr << "[SignUp Fail] Store result failed: " << mysql_stmt_error(check_stmt) << std::endl;
+            return false;
+        }
+
+        // If record exists, treat ad duplicate ID
+        if (mysql_stmt_num_rows(check_stmt) > 0) {
             std::cout << "[SignUp Fail] Duplicate username: " << username << std::endl;
-            sqlite3_finalize(check_stmt); // Clean up resource
-            return false;
-        }
-        sqlite3_finalize(check_stmt); // Clean up resource
-
-        // User register phase
-        sqlite3_stmt *insert_stmt = nullptr;
-
-        // Prepare secure query for user registration
-        rc = sqlite3_prepare_v2(db, Queries::SECURE_INSERT_USER, -1, &insert_stmt, nullptr);
-        if (rc != SQLITE_OK) {
-            std::cerr << "[SignUp Fail] Prepare insert failed: " << sqlite3_errmsg(db) << std::endl;
+            mysql_stmt_close(check_stmt);
             return false;
         }
 
-        // 2. stretch password with salt 10 thousand times
-        std::string hashed_password = hashPasswordArgon2id(password);
-        std::string salt = "argon2id";
-
-        // Parameter Binding (username, password, salt)
-        sqlite3_bind_text(insert_stmt, 1, username.c_str(), -1, SQLITE_TRANSIENT);
-        sqlite3_bind_text(insert_stmt, 2, hashed_password.c_str(), -1, SQLITE_TRANSIENT);
-        sqlite3_bind_text(insert_stmt, 3, salt.c_str(), -1, SQLITE_TRANSIENT);
-
-        // Execute query and verify insert success
-        rc = sqlite3_step(insert_stmt);
-        sqlite3_finalize(insert_stmt); // Clean up resource
-
-        // SQLITE_DONE : sql statement step has finished executing
-        if (rc != SQLITE_DONE) {
-            std::cerr << "[SignUp Fail] Insert execution error: " << sqlite3_errmsg(db) << std::endl;
-            return false;
-        }
-
-        std::cout << "[SignUp Success] Registered user: " << username << " (SECURED PATH)" << std::endl;
-        return true;
+        mysql_stmt_close(check_stmt);
     }
 
     // 2. Secure log in logic
