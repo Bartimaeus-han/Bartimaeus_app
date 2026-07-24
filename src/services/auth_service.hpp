@@ -1,9 +1,8 @@
 #pragma once              // prevents header files from being included multiple times
-#include "db_manager.hpp" // Include MySQL Connection Pool Manager
+#include "db_manager.hpp" // for MySQL connection pool management
 #include "db_queries.hpp" // Include SQL query header
 #include "helpers.hpp"
 #include "picosha2.h" // Include SHA-256 hashing library
-#include "sqlite3.h"
 
 #include <cctype> // Including character classification functions for hex validation (std::isxdigit)
 #include <iostream>
@@ -34,88 +33,105 @@ struct DbConnectionGuard {
 
 class AuthService {
 private:
-    // Virtual In-Memory DB
-    std::unordered_map<std::string, User> user_db; // username : User{username, password}
-    std::mutex db_mutex;                           // Simultaneous access control DB in multi-thread env
+    std::unordered_map<std::string, User> user_db; // Virtual In-Memory DB
+    std::mutex db_mutex;                           // Mutual  exclusion for concurent access
 
 public:
     // When Program started, open DB file
     AuthService() {
-        DbConnectionGuard guard;
-        MYSQL *conn = guard.conn;
-
-        if (!conn) {
-            std::cerr << "[DB Error] Cannot acquire connection for initialization." << std::endl;
-            return;
-        }
-
-        // Create MySQL compatible table
-        if (mysql_real_query(conn, Queries::CREATE_USERS_TABLE, strlen(Queries::CREATE_USERS_TABLE)) != 0) {
-            std::cerr << "[DB Error] Table create failed: " << mysql_error(conn) << std::endl;
-        } else {
-            std::cout << "[DB Success] 'users' table is ready (checked/created)." << std::endl;
-        }
-
-        // Update admin account privilge
-        mysql_real_query(conn, "UPDATE users SET role = 'ADMIN' WHERE username = 'admin';", strlen("UPDATE users SET role = 'ADMIN' WHERE username = 'admin'"));
+        std::cout < "[AuthService] initialized with MySQL DbManager." << std::endl;
     }
 
-    // Connection pool is managed globally, so bypass individual service cleanup here.
     ~AuthService() {}
 
     // Secure sign up logic
     bool signUp(const std::string &username, const std::string &password) {
-        DbConnectionGuard guard;  // Create connection pool guard
-        MYSQL *conn = guard.conn; // Acquire connection pointer
+        std::lock_guard<std::mutex> lock(db_mutex);
 
+        // 1. Borrow DB connection from pool
+        MYSQL *conn = DbManager::getInstance().getConnection();
         if (!conn) {
+            std::cerr << "[SignUp Fail] Could not get database connection. " << std::endl;
             return false;
         }
 
-        // Initialize and prepare duplicate ID check statement
+        // 2. Check duplicate username using MySQL Prepared Statement
         MYSQL_STMT *check_stmt = mysql_stmt_init(conn);
-        if (!check_stmt) {
-            std::cerr << "[SignUp Fail] Statement initialization failed: " << mysql_error(conn) << std::endl;
+        if (!check_stmt || mysql_stmt_prepare(check_stmt, Queries::SECURE_CHECK_USER, strlen(Queries::SECURE_CHECK_USER)) != 0) {
+            std::cerr << "[SignUp Fail] Prepare check failed: " << mysql_error(conn) << std::endl;
+
+            if (check_stmt)
+                mysql_stmt_close(check_stmt);
+
+            DbManager::getInstance().releaseConnection(conn); // Release connection
             return false;
         }
 
-        if (mysql_stmt_prepare(check_stmt, Queries::SECURE_CHECK_USER, strlen(Queries::SECURE_CHECK_USER)) != 0) {
-            std::cerr << "[SignUp Fail] Prepare check failed: " << mysql_stmt_error(check_stmt) << std::endl;
-            return false;
-        }
-
-        // 2. Parameter binding setup and mapping
+        // check_stmt에 바인딩 해줄 데이터를 만드는 곳
         MYSQL_BIND check_bind[1];
-        std::memset(check_bind, 0, sizeof(check_bind));
-
+        memset(check_bind, 0, sizeof(check_bind));
         check_bind[0].buffer_type = MYSQL_TYPE_STRING;
-        check_bind[0].buffer = (char *)username.c_str();
+        check_bind[0].buffer = (void *)username.c_str();
         check_bind[0].buffer_length = username.length();
 
-        if (mysql_stmt_bind_param(check_stmt, check_bind) != 0) {
-            std::cerr << "[SignUp Fail] Bind parameter failed: " << mysql_stmt_error(check_stmt) << std::endl;
-            mysql_stmt_close(check_stmt);
-            return false;
-        }
-
-        // 3. Execute query and verify duplication
-        if (mysql_stmt_execute(check_stmt) != 0) {
+        // 만약 바인딩에 실패했거나 쿼리 실행에 실패한 경우
+        if (mysql_stmt_bind_param(check_stmt, check_bind) != 0 || mysql_stmt_execute(check_stmt) != 0) {
             std::cerr << "[SignUp Fail] Execute check failed: " << mysql_stmt_error(check_stmt) << std::endl;
+
             mysql_stmt_close(check_stmt);
+            DbManager::getInstance().releaseConnection(conn);
             return false;
         }
 
-        if (mysql_stmt_store_result(check_stmt) != 0) {
-            std::cerr << "[SignUp Fail] Store result failed: " << mysql_stmt_error(check_stmt) << std::endl;
-            return false;
-        }
-
-        // If record exists, treat ad duplicate ID
+        // 쿼리가 실행된 결과셋을 저장하는 기능 (쿼리가 실행 되어도 일단은 스트림에 있지 메모리에 바로 저장되지는 않는다)
+        mysql_stmt_store_result(check_stmt);
         if (mysql_stmt_num_rows(check_stmt) > 0) {
             std::cout << "[SignUp Fail] Duplicate username: " << username << std::endl;
             mysql_stmt_close(check_stmt);
+            DbManager::getInstance().releaseConnection(conn);
             return false;
         }
+        // check_stmt를 해제한다.
+        // 왜 해제하나요? -> 이 stmt는 유저 중복 확인만을 위해 생성 되었기 때문이다.
+        mysql_stmt_close(check_stmt);
+
+        // 3. 회원가입 레코드 삽입
+        MYSQL_STMT *insert_stmt = mysql_stmt_init(conn);
+        if (!insert_stmt || mysql_stmt_prepare(insert_stmt, Queries::SECURE_INSERT_USER, strlen(Queries::SECURE_INSERT_USER)) != 0) {
+            std::cerr << "[SignUp Fail] Prepare insert failed: " << mysql_error(conn) << std::endl;
+            if (insert_stmt)
+                mysql_stmt_close(insert_stmt);
+
+            DbManager::getInstance().releaseConnection(conn);
+            return false;
+        }
+
+        std::string hashed_password = hashPasswordArgon2id(password);
+
+        MYSQL_BIND insert_bind[2];
+        memset(insert_bind, 0, sizeof(insert_bind)); // 0으로 채우기
+
+        insert_bind[0].buffer_type = MYSQL_TYPE_STRING;
+        insert_bind[0].buffer = (void *)username.c_str();
+        insert_bind[0].buffer_length = username.length();
+
+        insert_bind[1].buffer_type = MYSQL_TYPE_STRING;
+        insert_bind[1].buffer = (void *)hashed_password.c_str();
+        insert_bind[1].buffer_length = hashed_password.length();
+
+        if (mysql_stmt_bind_param(insert_stmt, insert_bind) != 0 || mysql_stmt_execute(insert_stmt) != 0) {
+            std::cerr << "[SignUp Fail] Insert execution error: " << mysql_stmt_error(insert_stmt) << std::endl;
+
+            mysql_stmt_close(insert_stmt);
+            DbManager::getInstance().releaseConnection(conn);
+            return false;
+        }
+
+        mysql_stmt_close(insert_stmt);
+        DbManager::getInstance().releaseConnection(conn);
+
+        mysql_stmt_close(insert_stmt);
+        DbManager::getInstance().releaseConnection(conn);
 
         mysql_stmt_close(check_stmt);
     }

@@ -1,0 +1,2 @@
+1. stmt(Statement) : DB API에서 Prepared Statement를 제어하기 위한 pointer/handle object
+2. Record : DB에서 Table에 저장되는 개별 데이터 1건 (하나의 행/Row)

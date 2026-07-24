@@ -6,7 +6,6 @@ constexpr const char *CREATE_USERS_TABLE =
     "CREATE TABLE IF NOT EXISTS users("
     "username VARCHAR(255) PRIMARY KEY, "
     "password VARCHAR(255) NOT NULL, "
-    "salt VARCHAR(255),"
     "role VARCHAR(50) NOT NULL DEFAULT 'USER'"
     ")";
 
@@ -18,10 +17,10 @@ constexpr const char *CREATE_USERS_TABLE =
 constexpr const char *SECURE_CHECK_USER = "SELECT username FROM users WHERE username = ?;";
 
 // Secure query for user registration
-constexpr const char *SECURE_INSERT_USER = "INSERT INTO users (username, password, salt) VALUES (?, ?, ?);";
+constexpr const char *SECURE_INSERT_USER = "INSERT INTO users (username, password) VALUES (?, ?);";
 
 // Secure query for login validation
-constexpr const char *SECURE_SELECT_USER = "SELECT password, salt, role FROM users WHERE username = ?;";
+constexpr const char *SECURE_SELECT_USER = "SELECT password, role FROM users WHERE username = ?;";
 
 constexpr const char *SECURE_SELECT_USER_ROLE = "SELECT role FROM users WHERE username = ?;";
 
@@ -47,7 +46,7 @@ constexpr const char *CREATE_POSTS_TABLE =
     ");";
 
 // Update query for  password algorithm migration on login
-constexpr const char *SECURE_UPDATE_USER_PASSWORD = "UPDATE users SET password = ?, salt = ? WHERE username = ?;";
+constexpr const char *SECURE_UPDATE_USER_PASSWORD = "UPDATE users SET password = ? WHERE username = ?;";
 
 // Secure parameterized query for writing a post
 constexpr const char *SECURE_INSERT_POST = "INSERT INTO posts (title, content, author) VALUES (?, ?, ?);";
