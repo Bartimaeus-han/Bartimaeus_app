@@ -61,25 +61,24 @@ set(SOURCES
 if(APPLE)
     set(OPENSSL_ROOT_DIR "/opt/homebrew/opt/openssl")
 elseif(WIN32)
-    set(OPENSSL_ROOT_DIR "C:/Users/Bartimaeus/anaconda3/Library")
+    set(OPENSSL_ROOT_DIR "C:/Users/Bartmaeus/miniconda3/Library")
 endif()
 find_package(OpenSSL REQUIRED)
 
 # 3. Search for MySQL client library
 find_path(MYSQL_INCLUDE_DIR mysql.h
     HINTS
+        "C:/Program Files/MySQL/MySQL Server 8.0/include"
+        "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/mysql/include"
         "/opt/homebrew/opt/mysql/include/mysql"
-        "C:/Users/Bartimaeus/anaconda3/Library/include/mysql"
-        "C:/Users/Bartimaeus/anaconda3/Library/include"
-        "C:/Program Files/MySQL/MySQL Server 8.0/include"    
 )
 
 find_library(MYSQL_LIBRARIES
-    NAMES mysqlclient libmysql
+    NAMES libmysql mysqlclient
     HINTS
-        "/opt/homebrew/opt/mysql/lib"
-        "C:/Users/Bartimaeus/anaconda3/Library/lib"
         "C:/Program Files/MySQL/MySQL Server 8.0/lib"
+        "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/mysql/lib"
+        "/opt/homebrew/opt/mysql/lib"
 )
 
 if(NOT MYSQL_INCLUDE_DIR OR NOT MYSQL_LIBRARIES)

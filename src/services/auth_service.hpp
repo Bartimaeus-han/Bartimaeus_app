@@ -1,10 +1,13 @@
 #pragma once              // prevents header files from being included multiple times
 #include "db_manager.hpp" // for MySQL connection pool management
 #include "db_queries.hpp" // Include SQL query header
+#include "field_types.h"
 #include "helpers.hpp"
+#include "mysql.h"
 #include "picosha2.h" // Include SHA-256 hashing library
 
 #include <cctype> // Including character classification functions for hex validation (std::isxdigit)
+#include <cstring>
 #include <iostream>
 #include <mutex> // Mutual Exclusion
 #include <string>
@@ -39,10 +42,16 @@ private:
 public:
     // When Program started, open DB file
     AuthService() {
-        std::cout < "[AuthService] initialized with MySQL DbManager." << std::endl;
+        std::cout << "[AuthService] initialized with MySQL DbManager." << std::endl;
     }
 
     ~AuthService() {}
+
+    // 아래 기능 함수들의 전체적인 순서는 아래와 같다
+    // 1. 연결 획득 (Get Connection)
+    // 2. 바인딩(인자 매칭) & 쿼리 실행
+    // 3. Result Binding
+    // 4. 결과 패치
 
     // Secure sign up logic
     bool signUp(const std::string &username, const std::string &password) {
@@ -130,140 +139,105 @@ public:
         mysql_stmt_close(insert_stmt);
         DbManager::getInstance().releaseConnection(conn);
 
-        mysql_stmt_close(insert_stmt);
-        DbManager::getInstance().releaseConnection(conn);
-
         mysql_stmt_close(check_stmt);
     }
 
     // 2. Secure log in logic
     bool login(const std::string &username, const std::string &password) {
+        // 1. Get Connection
+        // 1-1. Using mutex for safe(Concurrency Control) connection
         std::lock_guard<std::mutex> lock(db_mutex);
 
-        sqlite3_stmt *stmt = nullptr;
+        // 1-2. get connection instance
+        MYSQL *conn = DbManager::getInstance().getConnection();
+        // 1-3. check connection instance is valiable
+        if (!conn)
+            return false;
 
-        // Prepare secure query for login validation
-        int rc = sqlite3_prepare_v2(db, Queries::SECURE_SELECT_USER, -1, &stmt, nullptr);
-        if (rc != SQLITE_OK) {
-            std::cerr << "[Login Error] Prepare query failed: " << sqlite3_errmsg(db) << std::endl;
+        // 1-4. initialize the stmt using conn instance
+        MYSQL_STMT *stmt = mysql_stmt_init(conn);
+        // 1-5. check stmt, and prepare the stmt(both check)
+        if (!stmt || mysql_stmt_prepare(stmt, Queries::SECURE_SELECT_USER, strlen(Queries::SECURE_SELECT_USER)) != 0) {
+            std::cerr << "[Login Error] Prepare query failed: " << mysql_error(conn) << std::endl;
+            // 1-5-1. if stmt is connected, close before end.
+            if (stmt)
+                mysql_stmt_close(stmt);
+            // 1-5-2.
+            DbManager::getInstance().releaseConnection(conn);
+
             return false;
         }
 
-        // Parameter Binding (only username)
-        sqlite3_bind_text(stmt, 1, username.c_str(), -1, SQLITE_TRANSIENT);
+        // 2. Binding input parameter
+        // SELECT password, role FROM users WHERE username = ?;
+        // 2-1. make bind list store input parameter
+        MYSQL_BIND bind[1];
+        bind[0].buffer_type = MYSQL_TYPE_STRING;
+        bind[0].buffer = (void *)username.c_str();
+        bind[0].buffer_length = username.length();
 
-        bool authenticated = false;
-        bool needs_migration = false; // Flag for migration target
+        // 2-2. binding parameter to query and execute (check to)
+        if (mysql_stmt_bind_param(stmt, bind) || mysql_stmt_execute(stmt)) {
+            std::cerr << "[Login Error] Execute failed: " << mysql_stmt_error(stmt) << std::endl;
+            // 2-2-... close stmt and release connection (ending sequence)
+            mysql_stmt_close(stmt);
+            DbManager::getInstance().releaseConnection(conn);
+            return false;
+        }
 
-        // Execute query and verify result
-        rc = sqlite3_step(stmt);
-        if (rc == SQLITE_ROW) {
-            // Get salt and stored password from DB
-            std::string db_password_hash = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 0));
-            std::string db_salt = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1));
+        // 3.Result Binding
+        char db_password_hash[255] = {0};
+        char db_role[50] = {0};
+        unsigned long hash_len, role_len;
 
-            // 1. Check if the stored hash is Argon2id format
-            if (db_password_hash.find("$argon2id$", 0) == 0) {
-                if (verifyPasswordArgon2id(password, db_password_hash)) {
-                    authenticated = true;
-                    std::cout << "[Login Success] Authenticated via Argon2id: " << username << std::endl;
-                } else {
-                    std::cout << "[Login Failed] Password mismatch (Argon2id) for: " << username << std::endl;
-                }
-            }
+        MYSQL_BIND result_bind[2];
+        memset(result_bind, 0, sizeof(result_bind));
 
-            // 2. Verify with legacy SHA-256 if not Argon2id
-            else {
-                std::string stretched_input = stretchPasswordSHA256(password, db_salt);
-                if (db_password_hash == stretched_input) {
-                    authenticated = true;
-                    needs_migration = true;
-                    std::cout << "[Login Success] Authenticated via Legacy SHA_256: " << username << std::endl;
-                } else {
-                    std::cout << "[Login Failed] Password mismatch (SHA-256) for: " << username << std::endl;
-                }
-            }
+        result_bind[0].buffer_type = MYSQL_TYPE_STRING;
+        result_bind[0].buffer = db_password_hash;
+        result_bind[0].buffer_length = sizeof(db_password_hash);
+        result_bind[0].length = &hash_len; // write actual length of return data(hash password)
 
+        result_bind[1].buffer_type = MYSQL_TYPE_STRING;
+        result_bind[1].buffer = db_role;
+        result_bind[1].buffer_length = sizeof(db_role);
+        result_bind[1].length = &role_len;
+
+        if (mysql_stmt_bind_result(stmt, result_bind)) {
+            std::cerr << "[Login Error] Bind result failed: " << mysql_stmt_error(stmt) << std::endl;
+            mysql_stmt_close(stmt);
+            DbManager::getInstance().releaseConnection(conn);
+            return false;
+        }
+
+        // 4. Fetch Result & Verify Password
+        int fetch_res = mysql_stmt_fetch(stmt);
+
+        if (fetch_res != 0) {
+            std::cout << "[Login Fail] User not found: " << username << std::endl;
+            mysql_stmt_close(stmt);
+            DbManager::getInstance().releaseConnection(conn);
+            return false;
+        }
+
+        bool is_valid = verifyPasswordArgon2id(password, db_password_hash);
+
+        mysql_stmt_close(stmt);
+        DbManager::getInstance().releaseConnection(conn);
+
+        if (is_valid) {
+            std::cout << "[Login Success] Welcome, " << username << "!" << std::endl;
+            return true;
         } else {
-            std::cout << "[Login Failed] Invalid credentials for: " << username << std::endl;
+            std::cout << "[Login Fail] Invalid password for user: " << username << std::endl;
+            return false;
         }
-
-        sqlite3_finalize(stmt); // Clean up select statement
-
-        // 3. Execute real-time migration for legacy user on successful login
-        if (authenticated && needs_migration) {
-            sqlite3_stmt *update_stmt = nullptr;
-            int prepare_rc = sqlite3_prepare_v2(db, Queries::SECURE_UPDATE_USER_PASSWORD, -1, &update_stmt, nullptr);
-
-            if (prepare_rc == SQLITE_OK) {
-                // Generate new Argon2id hash using plain password
-                std::string new_hash = hashPasswordArgon2id(password);
-                std::string new_salt = "argon2id"; // salt column - until when?
-
-                sqlite3_bind_text(update_stmt, 1, new_hash.c_str(), -1, SQLITE_TRANSIENT);
-                sqlite3_bind_text(update_stmt, 2, new_salt.c_str(), -1, SQLITE_TRANSIENT);
-                sqlite3_bind_text(update_stmt, 3, username.c_str(), -1, SQLITE_TRANSIENT);
-
-                if (sqlite3_step(update_stmt) == SQLITE_DONE) {
-                    std::cout << "[Migration Success] Legacy user '" << username << "' has been successfully upgraded to Argon2id!" << std::endl;
-                } else {
-                    std::cerr << "[Migration Fail] Failed to update password to DB: " << sqlite3_errmsg(db) << std::endl;
-                }
-
-                sqlite3_finalize(update_stmt);
-            } else {
-                std::cerr << "[Migration Fail] Prepare update statement failed: " << sqlite3_errmsg(db) << std::endl;
-            }
-        }
-
-        return authenticated;
     }
 
     std::string getUserRole(const std::string &username) {
-        std::lock_guard<std::mutex> lock(db_mutex);
-
-        sqlite3_stmt *stmt = nullptr;
-
-        // Prepare query for role lookup
-        int rc = sqlite3_prepare_v2(db, Queries::SECURE_SELECT_USER_ROLE, -1, &stmt, nullptr);
-        if (rc != SQLITE_OK) {
-            std::cerr << "[DB Error] Prepare select user role failed: " << sqlite3_errmsg(db) << std::endl;
-            return "";
-        }
-
-        // Parameter binding
-        sqlite3_bind_text(stmt, 1, username.c_str(), -1, SQLITE_TRANSIENT);
-
-        std::string role = "";
-
-        // Execute query and retrieve result
-        if (sqlite3_step(stmt) == SQLITE_ROW) {
-            const unsigned char *val = sqlite3_column_text(stmt, 0);
-            if (val) {
-                role = reinterpret_cast<const char *>(val);
-            }
-        }
-
-        sqlite3_finalize(stmt);
-        return role;
     }
 
     // get all registered user list (for admin)
     std::vector<User> getAllUsers() {
-        std::lock_guard<std::mutex> lock(db_mutex);
-        std::vector<User> users;
-
-        const char *query = "SELECT username FROM users;";
-        sqlite3_stmt *stmt = nullptr;
-
-        if (sqlite3_prepare_v2(db, query, -1, &stmt, nullptr) == SQLITE_OK) {
-            while (sqlite3_step(stmt) == SQLITE_ROW) {
-                std::string username = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 0));
-                users.push_back({username, ""});
-            }
-        }
-
-        sqlite3_finalize(stmt);
-        return users;
     }
 };
