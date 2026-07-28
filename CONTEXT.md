@@ -8,7 +8,7 @@
 
 * **기반 언어**: C++20 이상 (MSVC 18 최신 표준 라이브러리 지원 및 clangd 파싱 호환성을 위해 C++20으로 상향)
 * **서버 라이브러리**: `cpp-httplib` (헤더 온리 라이브러리)
-* **데이터베이스**: SQLite3 (로컬 파일 기반: `server.db`)
+* **데이터베이스**: MySQL (MySQL C API 직접 연동, Connection Pool 구현) — 기존 SQLite3(`server.db`)에서 마이그레이션 완료
 * **빌드 시스템**: CMake (macOS/Unix 및 Windows 크로스 플랫폼 지원 구조)
 * **동작 포트**: `9090` 포트 (`0.0.0.0:9090` 리스닝)
 * **동작 제어**: `run.ps1` 및 `run.sh` 스크립트를 통한 빌드 및 실행 자동화
@@ -83,6 +83,14 @@
    * 해결책:
      * `CMake` 표준 및 `.clangd` 표준을 모두 C++20으로 상향 일치시킴.
      * `.clangd` 파일의 인클루드 경로 지정을 공백이나 줄바꿈 없이 `-imsvc<경로>` 및 `-I<경로>` 형식의 단일 문자열 토큰으로 작성하여 전달함.
+6. **Winsock2 및 MySQL 헤더 순서 충돌 (`ws2tcpip.h` 컴파일 오류)**:
+   * 현상: `.\run.ps1` 빌드 시 `ws2tcpip.h`에서 `SourceList`, `MULTICAST_MODE_TYPE`, `PIP_MSFILTER` 미선언 구문 에러 발생.
+   * 원인: Windows 환경에서 `mysql.h`가 `WIN32_LEAN_AND_MEAN` 매크로 없이 `<windows.h>`를 먼저 끌어오면서 레거시 Winsock v1(`winsock.h`)이 인클루드되었고, 이로 인해 이후 `cpp-httplib`의 `<ws2tcpip.h>`와 네트워크 심볼 충돌 유발.
+   * 해결책: [main.cpp](src/main.cpp) 및 [db_manager.hpp](src/services/db_manager.hpp) 최상단에 `WIN32_LEAN_AND_MEAN` 정의 및 `<winsock2.h>`, `<ws2tcpip.h>` 선제 선언을 추가하여 충돌 원천 차단.
+7. **MySQL C API 전환 직후 실행 파일 즉시 종료 (`STATUS_DLL_NOT_FOUND`, 0xC0000135)**:
+   * 현상: `.\run.ps1` 빌드는 에러 없이 성공하지만, 빌드된 `SecureWebServer.exe`를 실행하면 아무 로그도 없이 즉시 종료됨.
+   * 원인: `dumpbin /dependents`로 확인한 결과, MySQL C API 링크로 새로 추가된 `libmysql.dll`과 conda 환경의 `libssl-3-x64.dll`/`libcrypto-3-x64.dll`이 exe 옆에도, 시스템 PATH에도 없어 Windows 로더가 프로세스를 기동 즉시 강제 종료시킴. 컴파일/링크 단계는 정상이라 빌드 로그만으로는 원인이 드러나지 않았음.
+   * 해결책: [CMakeLists.txt](CMakeLists.txt)에 `WIN32` 조건부 `POST_BUILD` 커스텀 커맨드를 추가하여, 빌드 완료 시마다 위 3개 DLL을 `${OPENSSL_ROOT_DIR}/bin` 및 `MYSQL_LIBRARIES`가 위치한 디렉터리에서 exe 출력 디렉터리로 자동 복사하도록 구성. PATH를 영구로 건드리지 않는 xcopy 배포 방식.
 
 ### 3.2 현재 프로젝트 빌드 설정 값
 * **빌드 제너레이터**: `Ninja` (최종 타겟 실행 파일: `SecureWebServer.exe`)

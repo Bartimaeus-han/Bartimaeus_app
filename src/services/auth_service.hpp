@@ -3,7 +3,7 @@
 #include "db_queries.hpp" // Include SQL query header
 #include "field_types.h"
 #include "helpers.hpp"
-#include "mysql.h"
+#include <mysql.h>
 #include "picosha2.h" // Include SHA-256 hashing library
 
 #include <cctype> // Including character classification functions for hex validation (std::isxdigit)
@@ -138,8 +138,7 @@ public:
 
         mysql_stmt_close(insert_stmt);
         DbManager::getInstance().releaseConnection(conn);
-
-        mysql_stmt_close(check_stmt);
+        return true;
     }
 
     // 2. Secure log in logic
@@ -234,10 +233,139 @@ public:
         }
     }
 
+    // 3. Get user role logic
     std::string getUserRole(const std::string &username) {
+        // 1. Get Connection
+        std::lock_guard<std::mutex> lock(db_mutex);
+
+        MYSQL *conn = DbManager::getInstance().getConnection();
+        if (!conn)
+            return "USER";
+
+        MYSQL_STMT *stmt = mysql_stmt_init(conn);
+        if (!stmt || mysql_stmt_prepare(stmt, Queries::SECURE_SELECT_USER_ROLE, strlen(Queries::SECURE_SELECT_USER_ROLE)) != 0) {
+            std::cerr << "[GetUserRole Error] Prepare query failed: " << mysql_error(conn) << std::endl;
+            if (stmt)
+                mysql_stmt_close(stmt);
+            DbManager::getInstance().releaseConnection(conn);
+            return "USER";
+        }
+
+        // 2. Binding input parameter
+        MYSQL_BIND bind[1];
+        memset(bind, 0, sizeof(bind));
+        bind[0].buffer_type = MYSQL_TYPE_STRING;
+        bind[0].buffer = (void *)username.c_str();
+        bind[0].buffer_length = username.length();
+
+        if (mysql_stmt_bind_param(stmt, bind) || mysql_stmt_execute(stmt)) {
+            std::cerr << "[GetUserRole Error] Execute failed: " << mysql_stmt_error(stmt) << std::endl;
+            mysql_stmt_close(stmt);
+            DbManager::getInstance().releaseConnection(conn);
+            return "USER";
+        }
+
+        // 3. Result Binding
+        char db_role[50] = {0};
+        unsigned long role_len = 0;
+
+        MYSQL_BIND result_bind[1];
+        memset(result_bind, 0, sizeof(result_bind));
+
+        result_bind[0].buffer_type = MYSQL_TYPE_STRING;
+        result_bind[0].buffer = db_role;
+        result_bind[0].buffer_length = sizeof(db_role);
+        result_bind[0].length = &role_len;
+
+        if (mysql_stmt_bind_result(stmt, result_bind)) {
+            std::cerr << "[GetUserRole Error] Bind result failed: " << mysql_stmt_error(stmt) << std::endl;
+            mysql_stmt_close(stmt);
+            DbManager::getInstance().releaseConnection(conn);
+            return "USER";
+        }
+
+        // 4. Fetch Result & Return Role
+        int fetch_res = mysql_stmt_fetch(stmt);
+        std::string role = "USER";
+
+        if (fetch_res == 0) {
+            role = std::string(db_role, role_len);
+        } else {
+            std::cout << "[GetUserRole Fail] User not found: " << username << std::endl;
+        }
+
+        mysql_stmt_close(stmt);
+        DbManager::getInstance().releaseConnection(conn);
+        return role;
     }
 
-    // get all registered user list (for admin)
+    // 4. Get all registered user list (for admin)
     std::vector<User> getAllUsers() {
+        // 1. Get Connection
+        std::lock_guard<std::mutex> lock(db_mutex);
+        std::vector<User> users;
+
+        MYSQL *conn = DbManager::getInstance().getConnection();
+        if (!conn)
+            return users;
+
+        MYSQL_STMT *stmt = mysql_stmt_init(conn);
+        if (!stmt || mysql_stmt_prepare(stmt, Queries::SECURE_SELECT_ALL_USERS, strlen(Queries::SECURE_SELECT_ALL_USERS)) != 0) {
+            std::cerr << "[GetAllUsers Error] Prepare query failed: " << mysql_error(conn) << std::endl;
+            if (stmt)
+                mysql_stmt_close(stmt);
+            DbManager::getInstance().releaseConnection(conn);
+            return users;
+        }
+
+        // 2. Execute Query
+        if (mysql_stmt_execute(stmt) != 0) {
+            std::cerr << "[GetAllUsers Error] Execute failed: " << mysql_stmt_error(stmt) << std::endl;
+            mysql_stmt_close(stmt);
+            DbManager::getInstance().releaseConnection(conn);
+            return users;
+        }
+
+        // 3. Result Binding
+        char db_username[255] = {0};
+        char db_role[50] = {0};
+        unsigned long name_len = 0, role_len = 0;
+
+        MYSQL_BIND result_bind[2];
+        memset(result_bind, 0, sizeof(result_bind));
+
+        result_bind[0].buffer_type = MYSQL_TYPE_STRING;
+        result_bind[0].buffer = db_username;
+        result_bind[0].buffer_length = sizeof(db_username);
+        result_bind[0].length = &name_len;
+
+        result_bind[1].buffer_type = MYSQL_TYPE_STRING;
+        result_bind[1].buffer = db_role;
+        result_bind[1].buffer_length = sizeof(db_role);
+        result_bind[1].length = &role_len;
+
+        if (mysql_stmt_bind_result(stmt, result_bind) != 0) {
+            std::cerr << "[GetAllUsers Error] Bind result failed: " << mysql_stmt_error(stmt) << std::endl;
+            mysql_stmt_close(stmt);
+            DbManager::getInstance().releaseConnection(conn);
+            return users;
+        }
+
+        // 4. Store Result & Fetch Rows in Loop
+        mysql_stmt_store_result(stmt);
+
+        while (mysql_stmt_fetch(stmt) == 0) {
+            User u;
+            u.username = std::string(db_username, name_len);
+            u.role = std::string(db_role, role_len);
+            users.push_back(u);
+
+            memset(db_username, 0, sizeof(db_username));
+            memset(db_role, 0, sizeof(db_role));
+        }
+
+        mysql_stmt_close(stmt);
+        DbManager::getInstance().releaseConnection(conn);
+        return users;
     }
 };

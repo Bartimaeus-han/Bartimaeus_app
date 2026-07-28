@@ -24,6 +24,8 @@ constexpr const char *SECURE_SELECT_USER = "SELECT password, role FROM users WHE
 
 constexpr const char *SECURE_SELECT_USER_ROLE = "SELECT role FROM users WHERE username = ?;";
 
+constexpr const char *SECURE_SELECT_ALL_USERS = "SELECT username, role FROM users;";
+
 // ===========
 // Forum Query
 // ===========

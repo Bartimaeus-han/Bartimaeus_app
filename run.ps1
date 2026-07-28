@@ -41,6 +41,12 @@ if (-not $env:LIB) {
     Import-Vcvars
 }
 
+# Auto-initialize CMake build directory if missing
+if (-not (Test-Path .\build_win)) {
+    Write-Host "Initializing CMake build directory..." -ForegroundColor Cyan
+    cmake -B build_win -G Ninja
+}
+
 # Perform server build
 Write-Host "Start Server build..." -ForegroundColor Cyan
 cmake --build .\build_win

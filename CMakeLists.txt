@@ -54,7 +54,6 @@ target_include_directories(argon2 PUBLIC
 # make variable named `SOURCES` and store source file list to compile
 set(SOURCES
     src/main.cpp
-    3rdparty/sqlite3/sqlite3.c   # Include directly in the build target
 )
 
 # Search for OpenSSL package
@@ -68,16 +67,16 @@ find_package(OpenSSL REQUIRED)
 # 3. Search for MySQL client library
 find_path(MYSQL_INCLUDE_DIR mysql.h
     HINTS
-        "C:/Program Files/MySQL/MySQL Server 8.0/include"
         "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/mysql/include"
+        "C:/Program Files/MySQL/MySQL Server 8.0/include"
         "/opt/homebrew/opt/mysql/include/mysql"
 )
 
 find_library(MYSQL_LIBRARIES
     NAMES libmysql mysqlclient
     HINTS
-        "C:/Program Files/MySQL/MySQL Server 8.0/lib"
         "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/mysql/lib"
+        "C:/Program Files/MySQL/MySQL Server 8.0/lib"
         "/opt/homebrew/opt/mysql/lib"
 )
 
@@ -109,9 +108,28 @@ target_link_libraries(SecureWebServer PRIVATE
 # Enable OpenSSL support macro definition
 target_compile_definitions(SecureWebServer PRIVATE CPPHTTPLIB_OPENSSL_SUPPORT)
 
-target_include_directories(SecureWebServer PRIVATE 
+# UTF-8 source/execution charset (required for Korean comments on MSVC)
+if(MSVC)
+    target_compile_options(SecureWebServer PRIVATE /utf-8)
+endif()
+
+target_include_directories(SecureWebServer PRIVATE
     src
-    3rdparty/sqlite3
     3rdparty/picosha2
     ${MYSQL_INCLUDE_DIR}
 )
+
+# ----------------------------------------------------------------------
+# 빌드 후 런타임 DLL을 exe 옆으로 자동 복사 (Copy runtime DLLs next to the
+# executable after build, so it runs without manually editing PATH)
+# ----------------------------------------------------------------------
+if(WIN32)
+    get_filename_component(MYSQL_LIB_DIR "${MYSQL_LIBRARIES}" DIRECTORY)
+    add_custom_command(TARGET SecureWebServer POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${OPENSSL_ROOT_DIR}/bin/libssl-3-x64.dll"
+            "${OPENSSL_ROOT_DIR}/bin/libcrypto-3-x64.dll"
+            "${MYSQL_LIB_DIR}/libmysql.dll"
+            "$<TARGET_FILE_DIR:SecureWebServer>"
+    )
+endif()

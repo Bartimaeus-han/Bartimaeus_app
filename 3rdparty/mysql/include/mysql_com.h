@@ -31,8 +31,7 @@
   Common definition between mysql server & client.
 */
 
-#ifndef _mysql_com_h
-#define _mysql_com_h
+#pragma once
 
 #ifndef MYSQL_ABI_CHECK
 #include <stdbool.h>
@@ -47,20 +46,27 @@
   it, but on the server side, we need to get it from a header.
 */
 #ifndef my_socket_defined
-#include "my_io.h"
-#include "mysql/components/services/bits/my_io_bits.h"
+#define my_socket_defined
+#if defined(_WIN32) && !defined(MYSQL_ABI_CHECK)
+#include <windows.h>
+#ifdef WIN32_LEAN_AND_MEAN
+#include <winsock2.h>
+#endif
+#define my_socket SOCKET
+#else
+typedef int my_socket;
+#endif
 #endif
 
-#ifndef MYSQL_ABI_CHECK
-#include <stdbool.h>
-#endif
+
+
 
 #define SYSTEM_CHARSET_MBMAXLEN 3
 #define FILENAME_CHARSET_MBMAXLEN 5
 #define NAME_CHAR_LEN 64 /**< Field/table name length */
-#define PARTITION_EXPR_CHAR_LEN                \
-  2048 /**< Maximum expression length in chars \
-        */
+#define PARTITION_EXPR_CHAR_LEN                  \
+    2048 /**< Maximum expression length in chars \
+          */
 #define USERNAME_CHAR_LENGTH 32
 #define USERNAME_CHAR_LENGTH_STR "32"
 #ifndef NAME_LEN
@@ -173,7 +179,7 @@
 #define UNIQUE_FLAG 65536          /**< Intern: Used by sql_yacc */
 #define BINCMP_FLAG 131072         /**< Intern: Used by sql_yacc */
 #define GET_FIXED_FIELDS_FLAG                                                  \
-  (1 << 18)                               /**< Used to get fields in item tree \
+    (1 << 18)                             /**< Used to get fields in item tree \
                                            */
 #define FIELD_IN_PART_FUNC_FLAG (1 << 19) /**< Field part of partition func */
 /**
@@ -187,9 +193,9 @@
 #define FIELD_FLAGS_COLUMN_FORMAT 24 /**< Field column format, bit 24-25 */
 #define FIELD_FLAGS_COLUMN_FORMAT_MASK (3 << FIELD_FLAGS_COLUMN_FORMAT)
 #define FIELD_IS_DROPPED (1 << 26) /**< Intern: Field is being dropped */
-#define EXPLICIT_NULL_FLAG                        \
-  (1 << 27) /**< Field is explicitly specified as \
-               NULL by the user */
+#define EXPLICIT_NULL_FLAG                          \
+    (1 << 27) /**< Field is explicitly specified as \
+                 NULL by the user */
 /* 1 << 28 is unused. */
 
 /** Field will not be loaded in secondary engine. */
@@ -221,16 +227,16 @@
 #define REFRESH_HOSTS 8    /**< Flush host cache, FLUSH HOSTS */
 #define REFRESH_STATUS 16  /**< Flush status variables, FLUSH STATUS */
 #define REFRESH_THREADS 32 /**< Flush thread cache */
-#define REFRESH_REPLICA                         \
-  64 /**< Reset master info and restart replica \
-        thread, RESET REPLICA */
-#define REFRESH_SLAVE                                        \
-  REFRESH_REPLICA /**< Reset master info and restart replica \
-        thread, RESET REPLICA. This is deprecated,           \
-        use REFRESH_REPLICA instead. */
+#define REFRESH_REPLICA                           \
+    64 /**< Reset master info and restart replica \
+          thread, RESET REPLICA */
+#define REFRESH_SLAVE                                          \
+    REFRESH_REPLICA /**< Reset master info and restart replica \
+          thread, RESET REPLICA. This is deprecated,           \
+          use REFRESH_REPLICA instead. */
 
 #define REFRESH_MASTER                                                 \
-  128                            /**< Remove all bin logs in the index \
+    128                          /**< Remove all bin logs in the index \
                                     and truncate the index, RESET MASTER */
 #define REFRESH_ERROR_LOG 256    /**< Rotate only the error log */
 #define REFRESH_ENGINE_LOG 512   /**< Flush all storage engine logs */
@@ -246,7 +252,7 @@
 */
 #define REFRESH_FAST 32768
 #define REFRESH_USER_RESOURCES                                                 \
-  0x80000L                                /** FLUSH RESOURCES. @sa ::reset_mqh \
+    0x80000L                              /** FLUSH RESOURCES. @sa ::reset_mqh \
                                            */
 #define REFRESH_FOR_EXPORT 0x100000L      /** FLUSH TABLES ... FOR EXPORT */
 #define REFRESH_OPTIMIZER_COSTS 0x200000L /** FLUSH OPTIMIZER_COSTS */
@@ -326,7 +332,7 @@
 */
 #define CLIENT_CONNECT_WITH_DB 8
 #define CLIENT_NO_SCHEMA \
-  16 /**< DEPRECATED: Don't allow database.table.column */
+    16 /**< DEPRECATED: Don't allow database.table.column */
 /**
   Compression protocol supported.
 
@@ -462,9 +468,9 @@
 */
 #define CLIENT_TRANSACTIONS 8192
 #define CLIENT_RESERVED 16384 /**< DEPRECATED: Old flag for 4.1 protocol  */
-#define CLIENT_RESERVED2                                 \
-  32768 /**< DEPRECATED: Old flag for 4.1 authentication \
-           CLIENT_SECURE_CONNECTION */
+#define CLIENT_RESERVED2                                   \
+    32768 /**< DEPRECATED: Old flag for 4.1 authentication \
+             CLIENT_SECURE_CONNECTION */
 /**
   Enable/disable multi-stmt support
 
@@ -778,20 +784,20 @@
 #define CAN_CLIENT_COMPRESS CLIENT_COMPRESS
 
 /** Gather all possible capabilities (flags) supported by the server */
-#define CLIENT_ALL_FLAGS                                                       \
-  (CLIENT_LONG_PASSWORD | CLIENT_FOUND_ROWS | CLIENT_LONG_FLAG |               \
-   CLIENT_CONNECT_WITH_DB | CLIENT_NO_SCHEMA | CLIENT_COMPRESS | CLIENT_ODBC | \
-   CLIENT_LOCAL_FILES | CLIENT_IGNORE_SPACE | CLIENT_PROTOCOL_41 |             \
-   CLIENT_INTERACTIVE | CLIENT_SSL | CLIENT_IGNORE_SIGPIPE |                   \
-   CLIENT_TRANSACTIONS | CLIENT_RESERVED | CLIENT_RESERVED2 |                  \
-   CLIENT_MULTI_STATEMENTS | CLIENT_MULTI_RESULTS | CLIENT_PS_MULTI_RESULTS |  \
-   CLIENT_SSL_VERIFY_SERVER_CERT | CLIENT_REMEMBER_OPTIONS |                   \
-   CLIENT_PLUGIN_AUTH | CLIENT_CONNECT_ATTRS |                                 \
-   CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA |                                     \
-   CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS | CLIENT_SESSION_TRACK |                \
-   CLIENT_DEPRECATE_EOF | CLIENT_OPTIONAL_RESULTSET_METADATA |                 \
-   CLIENT_ZSTD_COMPRESSION_ALGORITHM | CLIENT_QUERY_ATTRIBUTES |               \
-   MULTI_FACTOR_AUTHENTICATION)
+#define CLIENT_ALL_FLAGS                                                         \
+    (CLIENT_LONG_PASSWORD | CLIENT_FOUND_ROWS | CLIENT_LONG_FLAG |               \
+     CLIENT_CONNECT_WITH_DB | CLIENT_NO_SCHEMA | CLIENT_COMPRESS | CLIENT_ODBC | \
+     CLIENT_LOCAL_FILES | CLIENT_IGNORE_SPACE | CLIENT_PROTOCOL_41 |             \
+     CLIENT_INTERACTIVE | CLIENT_SSL | CLIENT_IGNORE_SIGPIPE |                   \
+     CLIENT_TRANSACTIONS | CLIENT_RESERVED | CLIENT_RESERVED2 |                  \
+     CLIENT_MULTI_STATEMENTS | CLIENT_MULTI_RESULTS | CLIENT_PS_MULTI_RESULTS |  \
+     CLIENT_SSL_VERIFY_SERVER_CERT | CLIENT_REMEMBER_OPTIONS |                   \
+     CLIENT_PLUGIN_AUTH | CLIENT_CONNECT_ATTRS |                                 \
+     CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA |                                     \
+     CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS | CLIENT_SESSION_TRACK |                \
+     CLIENT_DEPRECATE_EOF | CLIENT_OPTIONAL_RESULTSET_METADATA |                 \
+     CLIENT_ZSTD_COMPRESSION_ALGORITHM | CLIENT_QUERY_ATTRIBUTES |               \
+     MULTI_FACTOR_AUTHENTICATION)
 
 /**
   Switch off from ::CLIENT_ALL_FLAGS the flags that are optional and
@@ -799,67 +805,67 @@
   If any of the optional flags is supported by the build it will be switched
   on before sending to the client during the connection handshake.
 */
-#define CLIENT_BASIC_FLAGS                                          \
-  (CLIENT_ALL_FLAGS &                                               \
-   ~(CLIENT_SSL | CLIENT_COMPRESS | CLIENT_SSL_VERIFY_SERVER_CERT | \
-     CLIENT_ZSTD_COMPRESSION_ALGORITHM))
+#define CLIENT_BASIC_FLAGS                                            \
+    (CLIENT_ALL_FLAGS &                                               \
+     ~(CLIENT_SSL | CLIENT_COMPRESS | CLIENT_SSL_VERIFY_SERVER_CERT | \
+       CLIENT_ZSTD_COMPRESSION_ALGORITHM))
 
 /** The status flags are a bit-field */
 enum SERVER_STATUS_flags_enum {
-  /**
-    Is raised when a multi-statement transaction
-    has been started, either explicitly, by means
-    of BEGIN or COMMIT AND CHAIN, or
-    implicitly, by the first transactional
-    statement, when autocommit=off.
-  */
-  SERVER_STATUS_IN_TRANS = 1,
-  SERVER_STATUS_AUTOCOMMIT = 2,   /**< Server in auto_commit mode */
-  SERVER_MORE_RESULTS_EXISTS = 8, /**< Multi query - next query exists */
-  SERVER_QUERY_NO_GOOD_INDEX_USED = 16,
-  SERVER_QUERY_NO_INDEX_USED = 32,
-  /**
-    The server was able to fulfill the clients request and opened a
-    read-only non-scrollable cursor for a query. This flag comes
-    in reply to COM_STMT_EXECUTE and COM_STMT_FETCH commands.
-    Used by Binary Protocol Resultset to signal that COM_STMT_FETCH
-    must be used to fetch the row-data.
-    @todo Refify "Binary Protocol Resultset" and "COM_STMT_FETCH".
-  */
-  SERVER_STATUS_CURSOR_EXISTS = 64,
-  /**
-    This flag is sent when a read-only cursor is exhausted, in reply to
-    COM_STMT_FETCH command.
-  */
-  SERVER_STATUS_LAST_ROW_SENT = 128,
-  SERVER_STATUS_DB_DROPPED = 256, /**< A database was dropped */
-  SERVER_STATUS_NO_BACKSLASH_ESCAPES = 512,
-  /**
-    Sent to the client if after a prepared statement reprepare
-    we discovered that the new statement returns a different
-    number of result set columns.
-  */
-  SERVER_STATUS_METADATA_CHANGED = 1024,
-  SERVER_QUERY_WAS_SLOW = 2048,
-  /**
-    To mark ResultSet containing output parameter values.
-  */
-  SERVER_PS_OUT_PARAMS = 4096,
+    /**
+      Is raised when a multi-statement transaction
+      has been started, either explicitly, by means
+      of BEGIN or COMMIT AND CHAIN, or
+      implicitly, by the first transactional
+      statement, when autocommit=off.
+    */
+    SERVER_STATUS_IN_TRANS = 1,
+    SERVER_STATUS_AUTOCOMMIT = 2,   /**< Server in auto_commit mode */
+    SERVER_MORE_RESULTS_EXISTS = 8, /**< Multi query - next query exists */
+    SERVER_QUERY_NO_GOOD_INDEX_USED = 16,
+    SERVER_QUERY_NO_INDEX_USED = 32,
+    /**
+      The server was able to fulfill the clients request and opened a
+      read-only non-scrollable cursor for a query. This flag comes
+      in reply to COM_STMT_EXECUTE and COM_STMT_FETCH commands.
+      Used by Binary Protocol Resultset to signal that COM_STMT_FETCH
+      must be used to fetch the row-data.
+      @todo Refify "Binary Protocol Resultset" and "COM_STMT_FETCH".
+    */
+    SERVER_STATUS_CURSOR_EXISTS = 64,
+    /**
+      This flag is sent when a read-only cursor is exhausted, in reply to
+      COM_STMT_FETCH command.
+    */
+    SERVER_STATUS_LAST_ROW_SENT = 128,
+    SERVER_STATUS_DB_DROPPED = 256, /**< A database was dropped */
+    SERVER_STATUS_NO_BACKSLASH_ESCAPES = 512,
+    /**
+      Sent to the client if after a prepared statement reprepare
+      we discovered that the new statement returns a different
+      number of result set columns.
+    */
+    SERVER_STATUS_METADATA_CHANGED = 1024,
+    SERVER_QUERY_WAS_SLOW = 2048,
+    /**
+      To mark ResultSet containing output parameter values.
+    */
+    SERVER_PS_OUT_PARAMS = 4096,
 
-  /**
-    Set at the same time as SERVER_STATUS_IN_TRANS if the started
-    multi-statement transaction is a read-only transaction. Cleared
-    when the transaction commits or aborts. Since this flag is sent
-    to clients in OK and EOF packets, the flag indicates the
-    transaction status at the end of command execution.
-  */
-  SERVER_STATUS_IN_TRANS_READONLY = 8192,
+    /**
+      Set at the same time as SERVER_STATUS_IN_TRANS if the started
+      multi-statement transaction is a read-only transaction. Cleared
+      when the transaction commits or aborts. Since this flag is sent
+      to clients in OK and EOF packets, the flag indicates the
+      transaction status at the end of command execution.
+    */
+    SERVER_STATUS_IN_TRANS_READONLY = 8192,
 
-  /**
-    This status flag, when on, implies that one of the state information has
-    changed on the server because of the execution of the last statement.
-  */
-  SERVER_SESSION_STATE_CHANGED = (1UL << 14)
+    /**
+      This status flag, when on, implies that one of the state information has
+      changed on the server because of the execution of the last statement.
+    */
+    SERVER_SESSION_STATE_CHANGED = (1UL << 14)
 };
 
 /**
@@ -870,12 +876,12 @@ enum SERVER_STATUS_flags_enum {
   never removed -- the execution engine expects them
   to disappear automagically by the next command.
 */
-#define SERVER_STATUS_CLEAR_SET                                   \
-  (SERVER_QUERY_NO_GOOD_INDEX_USED | SERVER_QUERY_NO_INDEX_USED | \
-   SERVER_MORE_RESULTS_EXISTS | SERVER_STATUS_METADATA_CHANGED |  \
-   SERVER_QUERY_WAS_SLOW | SERVER_STATUS_DB_DROPPED |             \
-   SERVER_STATUS_CURSOR_EXISTS | SERVER_STATUS_LAST_ROW_SENT |    \
-   SERVER_SESSION_STATE_CHANGED)
+#define SERVER_STATUS_CLEAR_SET                                     \
+    (SERVER_QUERY_NO_GOOD_INDEX_USED | SERVER_QUERY_NO_INDEX_USED | \
+     SERVER_MORE_RESULTS_EXISTS | SERVER_STATUS_METADATA_CHANGED |  \
+     SERVER_QUERY_WAS_SLOW | SERVER_STATUS_DB_DROPPED |             \
+     SERVER_STATUS_CURSOR_EXISTS | SERVER_STATUS_LAST_ROW_SENT |    \
+     SERVER_SESSION_STATE_CHANGED)
 
 /** Max length of a error message. Should be kept in sync with ::ERRMSGSIZE. */
 #define MYSQL_ERRMSG_SIZE 512
@@ -912,38 +918,38 @@ struct Vio;
 #define NET_ERROR_SOCKET_NOT_WRITABLE 4 /**< Try read and close socket */
 
 typedef struct NET {
-  MYSQL_VIO vio;
-  unsigned char *buff, *buff_end, *write_pos, *read_pos;
-  my_socket fd; /* For Perl DBI/dbd */
-  /**
-    Set if we are doing several queries in one
-    command ( as in LOAD TABLE ... FROM MASTER ),
-    and do not want to confuse the client with OK at the wrong time
-  */
-  unsigned long remain_in_buf, length, buf_length, where_b;
-  unsigned long max_packet, max_packet_size;
-  unsigned int pkt_nr, compress_pkt_nr;
-  unsigned int write_timeout, read_timeout, retry_count;
-  int fcntl;
-  unsigned int *return_status;
-  unsigned char reading_or_writing;
-  unsigned char save_char;
-  bool compress;
-  unsigned int last_errno;
-  unsigned char error;
-  /** Client library error message buffer. Actually belongs to struct MYSQL. */
-  char last_error[MYSQL_ERRMSG_SIZE];
-  /** Client library sqlstate buffer. Set along with the error message. */
-  char sqlstate[SQLSTATE_LENGTH + 1];
-  /**
-    Extension pointer, for the caller private use.
-    Any program linking with the networking library can use this pointer,
-    which is handy when private connection specific data needs to be
-    maintained.
-    The mysqld server process uses this pointer internally,
-    to maintain the server internal instrumentation for the connection.
-  */
-  void *extension;
+    MYSQL_VIO vio;
+    unsigned char *buff, *buff_end, *write_pos, *read_pos;
+    my_socket fd; /* For Perl DBI/dbd */
+    /**
+      Set if we are doing several queries in one
+      command ( as in LOAD TABLE ... FROM MASTER ),
+      and do not want to confuse the client with OK at the wrong time
+    */
+    unsigned long remain_in_buf, length, buf_length, where_b;
+    unsigned long max_packet, max_packet_size;
+    unsigned int pkt_nr, compress_pkt_nr;
+    unsigned int write_timeout, read_timeout, retry_count;
+    int fcntl;
+    unsigned int *return_status;
+    unsigned char reading_or_writing;
+    unsigned char save_char;
+    bool compress;
+    unsigned int last_errno;
+    unsigned char error;
+    /** Client library error message buffer. Actually belongs to struct MYSQL. */
+    char last_error[MYSQL_ERRMSG_SIZE];
+    /** Client library sqlstate buffer. Set along with the error message. */
+    char sqlstate[SQLSTATE_LENGTH + 1];
+    /**
+      Extension pointer, for the caller private use.
+      Any program linking with the networking library can use this pointer,
+      which is handy when private connection specific data needs to be
+      maintained.
+      The mysqld server process uses this pointer internally,
+      to maintain the server internal instrumentation for the connection.
+    */
+    void *extension;
 } NET;
 
 #define packet_error (~(unsigned long)0)
@@ -1003,29 +1009,29 @@ typedef struct NET {
   @note ::SHUTDOWN_DEFAULT does not respect the growing property, but it's ok.
 */
 enum mysql_enum_shutdown_level {
-  SHUTDOWN_DEFAULT = 0,
-  /** Wait for existing connections to finish */
-  SHUTDOWN_WAIT_CONNECTIONS = MYSQL_SHUTDOWN_KILLABLE_CONNECT,
-  /** Wait for existing transactons to finish */
-  SHUTDOWN_WAIT_TRANSACTIONS = MYSQL_SHUTDOWN_KILLABLE_TRANS,
-  /** Wait for existing updates to finish (=> no partial MyISAM update) */
-  SHUTDOWN_WAIT_UPDATES = MYSQL_SHUTDOWN_KILLABLE_UPDATE,
-  /** Flush InnoDB buffers and other storage engines' buffers*/
-  SHUTDOWN_WAIT_ALL_BUFFERS = (MYSQL_SHUTDOWN_KILLABLE_UPDATE << 1),
-  /** Don't flush InnoDB buffers, flush other storage engines' buffers*/
-  SHUTDOWN_WAIT_CRITICAL_BUFFERS = (MYSQL_SHUTDOWN_KILLABLE_UPDATE << 1) + 1,
-  /** Query level of the KILL command */
-  KILL_QUERY = 254,
-  /** Connection level of the KILL command */
-  KILL_CONNECTION = 255
+    SHUTDOWN_DEFAULT = 0,
+    /** Wait for existing connections to finish */
+    SHUTDOWN_WAIT_CONNECTIONS = MYSQL_SHUTDOWN_KILLABLE_CONNECT,
+    /** Wait for existing transactons to finish */
+    SHUTDOWN_WAIT_TRANSACTIONS = MYSQL_SHUTDOWN_KILLABLE_TRANS,
+    /** Wait for existing updates to finish (=> no partial MyISAM update) */
+    SHUTDOWN_WAIT_UPDATES = MYSQL_SHUTDOWN_KILLABLE_UPDATE,
+    /** Flush InnoDB buffers and other storage engines' buffers*/
+    SHUTDOWN_WAIT_ALL_BUFFERS = (MYSQL_SHUTDOWN_KILLABLE_UPDATE << 1),
+    /** Don't flush InnoDB buffers, flush other storage engines' buffers*/
+    SHUTDOWN_WAIT_CRITICAL_BUFFERS = (MYSQL_SHUTDOWN_KILLABLE_UPDATE << 1) + 1,
+    /** Query level of the KILL command */
+    KILL_QUERY = 254,
+    /** Connection level of the KILL command */
+    KILL_CONNECTION = 255
 };
 /** @}*/
 
 enum enum_resultset_metadata {
-  /** No metadata will be sent. */
-  RESULTSET_METADATA_NONE = 0,
-  /** The server will send all metadata. */
-  RESULTSET_METADATA_FULL = 1
+    /** No metadata will be sent. */
+    RESULTSET_METADATA_NONE = 0,
+    /** The server will send all metadata. */
+    RESULTSET_METADATA_FULL = 1
 };
 
 #if defined(__clang__)
@@ -1042,21 +1048,21 @@ enum enum_resultset_metadata {
 #pragma clang diagnostic pop
 #endif
 enum enum_cursor_type {
-  CURSOR_TYPE_NO_CURSOR = 0,
-  CURSOR_TYPE_READ_ONLY = 1,
-  CURSOR_TYPE_FOR_UPDATE = 2,
-  CURSOR_TYPE_SCROLLABLE = 4,
-  /**
-    On when the client will send the parameter count
-    even for 0 parameters.
-  */
-  PARAMETER_COUNT_AVAILABLE = 8
+    CURSOR_TYPE_NO_CURSOR = 0,
+    CURSOR_TYPE_READ_ONLY = 1,
+    CURSOR_TYPE_FOR_UPDATE = 2,
+    CURSOR_TYPE_SCROLLABLE = 4,
+    /**
+      On when the client will send the parameter count
+      even for 0 parameters.
+    */
+    PARAMETER_COUNT_AVAILABLE = 8
 };
 
 /** options for ::mysql_options() */
 enum enum_mysql_set_option {
-  MYSQL_OPTION_MULTI_STATEMENTS_ON,
-  MYSQL_OPTION_MULTI_STATEMENTS_OFF
+    MYSQL_OPTION_MULTI_STATEMENTS_ON,
+    MYSQL_OPTION_MULTI_STATEMENTS_OFF
 };
 
 /**
@@ -1068,12 +1074,12 @@ enum enum_mysql_set_option {
     - Modify the definition of ::SESSION_TRACK_END when a new member is added.
 */
 enum enum_session_state_type {
-  SESSION_TRACK_SYSTEM_VARIABLES, /**< Session system variables */
-  SESSION_TRACK_SCHEMA,           /**< Current schema */
-  SESSION_TRACK_STATE_CHANGE,     /**< track session state changes */
-  SESSION_TRACK_GTIDS,            /**< See also: session_track_gtids */
-  SESSION_TRACK_TRANSACTION_CHARACTERISTICS, /**< Transaction chistics */
-  SESSION_TRACK_TRANSACTION_STATE            /**< Transaction state */
+    SESSION_TRACK_SYSTEM_VARIABLES,            /**< Session system variables */
+    SESSION_TRACK_SCHEMA,                      /**< Current schema */
+    SESSION_TRACK_STATE_CHANGE,                /**< track session state changes */
+    SESSION_TRACK_GTIDS,                       /**< See also: session_track_gtids */
+    SESSION_TRACK_TRANSACTION_CHARACTERISTICS, /**< Transaction chistics */
+    SESSION_TRACK_TRANSACTION_STATE            /**< Transaction state */
 };
 
 /** start of ::enum_session_state_type */
@@ -1084,7 +1090,7 @@ enum enum_session_state_type {
 
 /** is T a valid session state type */
 #define IS_SESSION_STATE_TYPE(T) \
-  (((int)(T) >= SESSION_TRACK_BEGIN) && ((T) <= SESSION_TRACK_END))
+    (((int)(T) >= SESSION_TRACK_BEGIN) && ((T) <= SESSION_TRACK_END))
 
 #define net_new_transaction(net) ((net)->pkt_nr = 0)
 
@@ -1107,12 +1113,12 @@ void my_net_set_read_timeout(struct NET *net, unsigned int timeout);
 void my_net_set_retry_count(struct NET *net, unsigned int retry_count);
 
 struct rand_struct {
-  unsigned long seed1, seed2, max_value;
-  double max_value_dbl;
+    unsigned long seed1, seed2, max_value;
+    double max_value_dbl;
 };
 
 /* Include the types here so existing UDFs can keep compiling */
-#include "mysql/udf_registration_types.h"
+#include "udf_registration_types.h"
 
 /**
   @addtogroup group_cs_compresson_constants Constants when using compression
@@ -1194,4 +1200,5 @@ unsigned int net_field_length_size(const unsigned char *pos);
 #define NULL_LENGTH ((unsigned long)~0) /**< For ::net_store_length() */
 #define MYSQL_STMT_HEADER 4
 #define MYSQL_LONG_DATA_HEADER 6
-#endif
+
+/* end of mysql_com.h */

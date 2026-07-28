@@ -1,6 +1,7 @@
 #pragma once
 #include "db_manager.hpp"
 #include "db_queries.hpp"
+#include <mysql.h>
 
 #include <iostream>
 #include <mutex>
