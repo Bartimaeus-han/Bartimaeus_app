@@ -1,7 +1,7 @@
 -- Create and use database
 
-CREATE DATABASE IF NOT EXISTS app_db CHARACTER SET utf8mb3 COLLATE utf8mb4_unicode_ci;
-USE app_db;
+CREATE DATABASE IF NOT EXISTS bartimaeus_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE bartimaeus_db;
 -- 1. Create users table
 CREATE TABLE IF NOT EXISTS users (
     username VARCHAR(255) PRIMARY KEY,
@@ -15,8 +15,8 @@ CREATE TABLE IF NOT EXISTS posts (
     title VARCHAR(255) NOT NULL,
     content TEXT NOT NULL,
     author VARCHAR(255) NOT NULL,
-    create_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
-) ENGINE = InnoDB DEFAULT CURRENT_TIMESTAMP
+    create_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
 
 INSERT IGNORE INTO users (username, password, role) VALUES
 ('admin', 'admin_hash_placeholder', 'ADMIN'),
