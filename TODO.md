@@ -45,3 +45,8 @@
     - [ ] `_WIN32`/`__APPLE__` 분기(Job Object 메모리 제한, Mach 커널 API 기반 `printMemoryUsage` 등)가 Docker-only 전환 이후 실제 빌드 경로에서는 전혀 컴파일되지 않는 죽은 코드가 됨 — 유지(향후 네이티브 빌드 대비) vs 완전 제거(Linux 전용 단순화) 결정 필요
     - [ ] 유지하기로 할 경우, 로컬 clangd/IntelliSense가 실제 빌드 타겟(Linux)이 아닌 Windows 분기를 분석 대상으로 삼고 있어 버그가 에디터에서 안 걸리고 숨을 수 있다는 리스크를 인지하고 있을 것 (Linux 전용 `mach/mach.h` 컴파일 실패로 처음 발견된 사례 참고)
 
+- [ ] **`RLIMIT_AS` 상향(128MB→512MB)에 따른 THREAT-05(DoS) 실습 조건 재설계 (THREAT-05-Followup)**
+    - [ ] 기존 128MB 한도가 idle 상태 스레드 스택 오버헤드만으로 거의 소진되어 신규 연결 스레드의 스택 할당이 실패, TLS 핸드셰이크가 응답 없이 무한 행(hang)되는 실제 장애로 이어짐을 확인(2026-07-31) → 임시 조치로 512MB 상향하여 정상화됨(상세: `CONTEXT.md` 3.1-8)
+    - [ ] 512MB는 정상 가동 확보를 위한 응급 조치이며 DoS 방어선으로는 느슨함 — Ochlos 공격 실습(`memory_exhaustion.py`) 재설계 시 이 상향된 한도 기준으로 공격 강도/시나리오 재산정 필요
+    - [ ] 근본 대안 검토: ① 스레드 스택 크기를 `pthread_attr_setstacksize` 등으로 명시적으로 축소해 스레드당 오버헤드 자체를 줄이는 방향, ② Docker `cgroups` 기반 물리 메모리 제한(`mem_limit`)으로 전환하고 `RLIMIT_AS`는 보조 수단으로 격하 — 512MB 고정 상향 대신 근본 해결책 채택 여부 논의 필요
+

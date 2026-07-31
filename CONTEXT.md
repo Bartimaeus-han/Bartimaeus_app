@@ -92,6 +92,11 @@
    * 원인: `dumpbin /dependents`로 확인한 결과, MySQL C API 링크로 새로 추가된 `libmysql.dll`과 conda 환경의 `libssl-3-x64.dll`/`libcrypto-3-x64.dll`이 exe 옆에도, 시스템 PATH에도 없어 Windows 로더가 프로세스를 기동 즉시 강제 종료시킴. 컴파일/링크 단계는 정상이라 빌드 로그만으로는 원인이 드러나지 않았음.
    * 해결책: [CMakeLists.txt](CMakeLists.txt)에 `WIN32` 조건부 `POST_BUILD` 커스텀 커맨드를 추가하여, 빌드 완료 시마다 위 3개 DLL을 `${OPENSSL_ROOT_DIR}/bin` 및 `MYSQL_LIBRARIES`가 위치한 디렉터리에서 exe 출력 디렉터리로 자동 복사하도록 구성. PATH를 영구로 건드리지 않는 xcopy 배포 방식.
 
+8. **`RLIMIT_AS` 128MB 소진으로 인한 HTTPS 연결 무한 행(Hang) 장애 (2026-07-31)**:
+   * 현상: `docker compose up`으로 컨테이너(app, mariadb) 모두 정상 `Up` 상태였고 포트 매핑(9090)과 TCP 3-way handshake(`Test-NetConnection`)까지는 성공했으나, 실제 HTTPS 요청(`curl`)은 매번 응답 없이 타임아웃됨. 컨테이너 로그상 서버 기동 자체는 정상 출력됨.
+   * 원인: TODO.md에 사전 기록되어 있던 `RLIMIT_AS`(128MB) VSS 소진 우려([TODO.md](TODO.md) 참고)가 실제 장애로 발현. Idle 상태에서 이미 128MB 한도의 97%가 스레드 스택 예약분으로 소진된 상태였기 때문에, 신규 연결을 처리할 스레드의 스택 할당이 조용히 실패 — TCP accept 자체는 OS 레벨에서 성공하지만 TLS 핸드셰이크를 처리할 스레드가 뜨지 못해 클라이언트 입장에서는 명확한 에러(Connection Refused 등) 없이 무한 대기(hang)로 관측됨.
+   * 해결책(임시): [main.cpp](src/main.cpp) `limitProcessMemory()` 호출 인자를 128MB에서 **512MB로 상향**하여 스레드 스택 오버헤드 여유분을 확보, 정상 연결 재개 확인. 근본적인 스레드 스택 크기 축소나 cgroups 기반 물리 메모리 제한 전환 등은 후속 과제로 [TODO.md](TODO.md)에 재기재됨.
+
 ### 3.2 현재 프로젝트 빌드 설정 값
 * **빌드 제너레이터**: `Ninja` (최종 타겟 실행 파일: `SecureWebServer.exe`)
   * `CMAKE_EXPORT_COMPILE_COMMANDS`를 통해 `compile_commands.json`을 강제 활성화하여 `clangd` 언어 서버가 정상 동작하도록 보장함.
