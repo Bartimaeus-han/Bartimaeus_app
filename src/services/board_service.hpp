@@ -24,7 +24,7 @@ private:
 public:
     // Connects to database and verifies table
     BoardService() {
-        std::cout << "[BoardService] initialized with MySQL DbManager." << std::endl;
+        std::cout << "[BoardService] initialized with MariaDB DbManager." << std::endl;
     }
 
     // In Destructor, close database connection

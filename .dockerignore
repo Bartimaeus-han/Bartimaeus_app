@@ -1,0 +1,13 @@
+.git
+build_win
+build_linux
+.vscode
+.vscode
+*.obj
+*.exe
+*.dll
+*.lib
+*.pdb
+error_log
+chat_history_export.md
+server.db

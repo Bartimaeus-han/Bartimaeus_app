@@ -1,11 +1,3 @@
-#if defined(_WIN32)
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#endif
-
 #include "controllers/auth_controller.hpp"
 #include "controllers/board_controller.hpp"
 #include "helpers.hpp"    // Helper functions
@@ -21,15 +13,11 @@
 #include <iostream>
 #include <thread> // For starting background thread
 
-#if defined(_WIN32)
-#include <psapi.h> // Process memory information API
-#include <windows.h>
-#else
-#include <cstring>        // for `strerror`
-#include <mach/mach.h>    // for acquiring macOS kernel task info
-#include <sys/resource.h> // Resource limits on macOS/Linux
-#endif
-#include <iomanip> // Formatted output
+#include <cstring>
+#include <fstream>
+#include <sstream>
+#include <sys/resource.h>
+#include <iomanip>
 
 // to allow the signal handler function to access the server object
 httplib::Server *global_svr = nullptr;
@@ -43,31 +31,6 @@ void handle_signal(int signal) {
 }
 
 void limitProcessMemory(size_t limit_mb) {
-#if defined(_WIN32)
-    HANDLE hJob = CreateJobObject(NULL, NULL);
-
-    if (!hJob) {
-        std::cerr << "[Memory Limit] Failed to create Job Object. Error: " << GetLastError() << std::endl;
-        return;
-    }
-    JOBOBJECT_EXTENDED_LIMIT_INFORMATION jeli = {0};
-    jeli.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_PROCESS_MEMORY;
-    jeli.ProcessMemoryLimit = limit_mb * 1024 * 1024; // Convert MB to bytes
-
-    if (!SetInformationJobObject(hJob, JobObjectExtendedLimitInformation, &jeli, sizeof(jeli))) {
-        std::cerr << "[Memory Limit] Failed to set Job Object info. Error: " << GetLastError() << std::endl;
-        return;
-    }
-
-    if (!AssignProcessToJobObject(hJob, GetCurrentProcess())) {
-        std::cerr << "[Memory Limit] Failed to assign process to Job Object. Error: " << GetLastError() << std::endl;
-        return;
-    }
-
-    std::cout << "[Memory Limit] Process memory limited to " << limit_mb << " MB succesfully." << std::endl;
-
-#else
-    // Limit memory for macOS/Linux
     struct rlimit rl;
     rl.rlim_cur = limit_mb * 1024 * 1024;
     rl.rlim_max = limit_mb * 1024 * 1024;
@@ -77,38 +40,27 @@ void limitProcessMemory(size_t limit_mb) {
         return;
     }
 
-    std::cout << "[Memory Limit] Process memory limited to " << limit_mb << " MB succesfully on macOS/Linux." << std::endl;
-#endif
+    std::cout << "[Memory Limit] Process memory limited to " << limit_mb << " MB successfully on Linux." << std::endl;
 }
 
 // Function to print the process memory usage on startup
 void printMemoryUsage() {
-#if defined(_WIN32)
-    PROCESS_MEMORY_COUNTERS pmc;
-    if (GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc))) {
-        // Convert bytes to megabytes
-        double physical_mb = static_cast<double>(pmc.WorkingSetSize) / (1024.0 * 1024.0);
-        double commit_mb = static_cast<double>(pmc.PagefileUsage) / (1024.0 * 1024.0);
+    std::ifstream status_file("/proc/self/status");
+    std::string line;
+    double physical_mb = 0.0;
 
-        std::cout << "[System Info] Memory Usage on Startup:" << std::endl;
-        std::cout << "  - Physical Memory (Working Set): " << std::fixed << std::setprecision(2) << physical_mb << " MB" << std::endl;
-        std::cout << "  - Committed Memory (Private Bytes): " << commit_mb << " MB" << std::endl;
+    while (std::getline(status_file, line)) {
+        if (line.rfind("VmRSS:", 0) == 0) {
+            std::istringstream iss(line.substr(6));
+            long kb = 0;
+            iss >> kb;
+            physical_mb = static_cast<double>(kb) / 1024.0;
+            break;
+        }
     }
-#else
-    // Measure physical memory usage of process using macOS kernel API
-    struct task_vm_info vm_info;
-    mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
 
-    if (task_info(mach_task_self(), TASK_VM_INFO, (task_info_t)&vm_info, &count) == KERN_SUCCESS) {
-        double physical_mb = static_cast<double>(vm_info.resident_size) / (1024.0 * 1024.0);
-        double committed_mb = static_cast<double>(vm_info.phys_footprint) / (1024.0 * 1024.0);
-
-        std::cout
-            << "[System Info] Memory Usage:" << std::endl;
-        std::cout << "  - Physical Memory (Resident): " << std::fixed << std::setprecision(2) << physical_mb << " MB" << std::endl;
-        std::cout << "  - Committed Memory (Footprint): " << committed_mb << " MB" << std::endl;
-    }
-#endif
+    std::cout << "[System Info] Memory Usage:" << std::endl;
+    std::cout << "  - Physical Memory (resident): " << std::fixed << std::setprecision(2) << physical_mb << " MB" << std::endl;
 }
 
 int main() {

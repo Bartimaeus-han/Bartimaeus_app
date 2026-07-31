@@ -1,16 +1,33 @@
 services:
-  mysql:
-    image: mysql:8.0
-    container_name: bartimaeus-mysql
+  mariadb:
+    image: mariadb:11.4
+    container_name: bartimaeus-mariadb
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
-      MYSQL_DATABASE: bartimaeus_db
+      MARIADB_ROOT_PASSWORD: rootpassword
+      MARIADB_DATABASE: bartimaeus_db
     ports:
       - "3306:3306"
     volumes:
-      - mysql_data:/var/lib/mysql
+      - mariadb_data:/var/lib/mysql
       - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
 
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bartimaeus-app
+    restart: unless-stopped
+    depends_on:
+      - mariadb
+    environment:
+      DB_HOST: mariadb
+      DB_USER: root
+      DB_PASSWORD: rootpassword
+      DB_NAME: bartimaeus_db
+      DB_PORT: "3306"
+    ports:
+      - "9090:9090"
+
 volumes:
-  mysql_data:
+  mariadb_data:

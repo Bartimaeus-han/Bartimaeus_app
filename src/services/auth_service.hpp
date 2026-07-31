@@ -42,7 +42,7 @@ private:
 public:
     // When Program started, open DB file
     AuthService() {
-        std::cout << "[AuthService] initialized with MySQL DbManager." << std::endl;
+        std::cout << "[AuthService] initialized with MariaDB DbManager." << std::endl;
     }
 
     ~AuthService() {}
