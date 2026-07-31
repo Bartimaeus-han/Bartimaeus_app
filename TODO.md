@@ -6,6 +6,15 @@
 
 ## 📌 보안 강화 작업 목록 (Checklist)
 
+- [/] **[CRITICAL] DB 커넥션 풀 고갈로 인한 전체 서비스 마비 버그 수정 (THREAT-07)**
+    - [x] `db_manager.hpp`의 `getConnection()`에서 `mysql_ping()` 실패 후 `createConnection()` 재연결이 실패(nullptr 반환)하면 해당 풀 슬롯이 영구 소실되는 버그 발견 및 실제 재현 (Docker 환경에서 MariaDB 컨테이너 재시작 후 전체 API 응답 불가 상태 확인, exit code 137로 간접 확인) — 코드 흐름(pop_back → ping 실패 → createConnection 재실패 → nullptr → releaseConnection의 guard에서 소실) 전체 메커니즘 학습 및 이해 완료
+    - [ ] 재연결 실패 시 풀 슬롯을 잃지 않고 재시도하거나, 최소한 `nullptr` 반환 시 호출자가 이를 감지해 사용자에게 503 등 명확한 에러를 반환하도록 방어 로직 설계 (현재는 워커 스레드가 `pool_cv.wait()`에서 영구 대기하며 cpp-httplib 공용 스레드 풀 전체를 고갈시킴)
+    - [ ] 임시 복구 조치: `docker compose restart app`으로 pool 재초기화 확인
+
+- [ ] **API 레벨 자동 테스트/스모크 테스트 구축 (Infra)**
+    - [ ] 회원가입/로그인/게시글 CRUD 등 핵심 API를 대상으로 한 자동화된 스모크 테스트 스크립트 도입 검토 (매번 수동 curl 호출 대신, Docker 환경 기동 후 자동으로 헬스체크 + 핵심 플로우 검증)
+    - [ ] 도구 후보(예: 간단한 Python/curl 스크립트 vs pytest 기반) 및 실행 시점(로컬 vs CI) 논의 필요
+
 - [ ] **비밀번호 복잡도 유효성 검증 규칙 도입 (THREAT-01)**
     - [ ] `AuthService::signUp` 시 비밀번호 최소 길이 및 구성 조건 정규식 검사 함수 추가 (Add password length and pattern validation in AuthService::signUp)
     - [ ] 검증 실패 시 오류 메시지 프론트엔드로 전달 및 예외 정책 수립 (Pass error messages to frontend and establish policy exceptions)

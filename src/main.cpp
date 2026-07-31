@@ -287,7 +287,7 @@ int main() {
                    }));
 
         std::cout << "========================================================" << std::endl;
-        std::cout << " Secure Web Server is starting on https://localhost:9090" << std::endl;
+        std::cout << " Bartimaeus_app is starting on https://localhost:9090" << std::endl;
         printMemoryUsage();
         std::cout << "========================================================" << std::endl;
 

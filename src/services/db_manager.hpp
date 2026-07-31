@@ -1,5 +1,6 @@
 #pragma once
 
+#include <ostream>
 #if defined(_WIN32)
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -35,7 +36,7 @@ private:
     DbManager() {
         // Loads env varibales and initializes pool
         const char *env_host = std::getenv("DB_HOST");
-        host = env_host ? env_host : "127.0.0.1";
+        host = env_host ? env_host : "127.0.0.1"; // 이건 그냥 MariaDB 접속 주소의 fallback 기본값 (bartimaeus-app 접속과는 무관)
 
         const char *env_user = std::getenv("DB_USER");
         user = env_user ? env_user : "root";
@@ -122,13 +123,25 @@ public:
         pool_cv.wait(lock, [this]() { return !connection_pool.empty(); });
 
         MYSQL *conn = connection_pool.back();
-        connection_pool.pop_back();
+        connection_pool.pop_back(); // 이 시점에 풀 크기는 1 감소
 
         // Ping test and reconnect
         if (mysql_ping(conn) != 0) {
             std::cout << "[DB Warning] Lost connection, attempting to reconnect..." << std::endl;
             mysql_close(conn);
-            conn = createConnection();
+            
+            conn = nullptr;
+
+            const int max_retries = 5;
+            const int retryl_delay_ms = 500;
+
+            for (int i = 0; i < max_retries && !conn; i++) {
+                conn = createConnection();
+                if (!conn) {
+                    std::cout << "[DB Warning] Reconnect attempt " << (i + 1) << "/" << max_retries << " failed." << std::endl;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(retryl_delay_ms));
+                }
+            }
         }
 
         return conn;
