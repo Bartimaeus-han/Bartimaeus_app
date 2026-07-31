@@ -45,6 +45,7 @@
 | **`87a9d31`** | [helpers.hpp](src/helpers.hpp), [auth_controller.hpp](src/controllers/auth_controller.hpp) | **Security (Cookie)** | 쿠키 키 이름 부분 일치 우회 방지를 위해 `;` 구분자 기반 분할 및 공백 trim을 적용한 안전한 쿠키 파싱 구현 및 중복 코드 리팩토링 |
 | **`53e3c7f`** | `src/*`, `CMakeLists.txt` | **Refactor** | 중복되는 세션/CSRF 검증 코드를 공통 횡단 관심사로 통합하기 위해 C++ 함수형 스타일의 보안 미들웨어([middleware.hpp](src/middleware.hpp)) 도입 및 컨트롤러 핸들러 슬림화 리팩토링 수행 |
 | **`825a689`** | `src/*`, `public/js/*` | **Refactor (AdminDelete)** | 관리자가 다른 사용자의 글을 삭제할 수 있도록 권한 정책 변경(Option 1) 및 클라이언트 측 confirm() 삭제 재확인 로직 추가 |
+| **`7d4dffc`** | [main.cpp](src/main.cpp) | **Security (DoS)** | Payload 자원 고갈 공격 방어를 위한 최초의 프로세스 메모리 제한(`setrlimit` 기반 process memory restriction) 로직 도입 — 이후 RLIMIT_AS VSS 소진 장애(3.1-8 참고)의 근본 원인이 된 코드의 최초 도입 지점 |
 | **`39449a1`** | `src/*` | **Security (IN)** | 서비스 계층 및 SQL 수준에서 게시글 삭제 권한 검증 이중화 적용 (Defense in Depth) |
 | **`df88187`** | `src/*`, `CMakeLists.txt` | **Security (Argon2id)** | 패스워드 해싱 알고리즘을 SHA-256에서 Argon2id(32MB, 3-pass)로 업그레이드 완료하고, 로그인 시 레거시 사용자의 해시를 실시간 자동 전환(Lazy Migration)하는 과도기 대응 로직 구현 |
 | **`ce7256a`** | `src/*` | **Security (XSS)** | 게시글 제목, 본문, 작성자 출력 시점에 HTML Entity Encoding(`htmlEscape`)을 적용하여 세션/브라우저 상태와 관계없이 Stored XSS 공격면을 원천 차단하는 이중 방어 패치 적용 |
@@ -55,6 +56,17 @@
 | **`b8ade32`** | `src/*` | **Security (Hardening)** | C++ 백그라운드 GC 스레드(std::thread)를 도입하여 만료된 세션 및 로그인 실패 이력을 10초 주기로 청소하고, 로그인 진입로(handleLogin)의 사용자명 최대 길이(32자) 선제 입력값 검증 추가. 이진 탐색 기법을 이용한 공격 페이로드 최적화 및 방어 검증 완료 |
 | **`d1422c9`** | [main.cpp](src/main.cpp) | **Refactor (Shutdown)** | C++20 `std::jthread` 및 `std::stop_token`을 적용하여 백그라운드 GC 스레드의 수명 주기를 RAII로 보장하고, `main` 함수 전역에 try-catch 예외 처리 블록을 씌워 예외 상황에서의 안전한 서버 종료 및 리소스 자동 해제 구조 구축 완료 |
 | **`d1422c9`** | [main.cpp](src/main.cpp) | **Security (Hardening)** | HTTP 라우팅 핸들러 내부 예외 격리를 위해 `set_exception_handler`를 등록하고, 예외 발생 시 개별 요청 수준에서 500 에러와 임의 에러 추적 ID(Tracking ID)를 반환하도록 예외 격리(Isolating Exceptions) 처리 완료 |
+| **`157990d`** | [db_manager.hpp](src/services/db_manager.hpp), `CMakeLists.txt` | **Feat (MySQL 마이그레이션 시작)** | CMake 빌드에 MySQL 클라이언트 라이브러리 최초 연동 및 `DbManager` 커넥션 풀 클래스(Singleton + `std::vector<MYSQL*>` 풀 + `condition_variable` 대기) 최초 구현 |
+| **`0fb08d6`** | [auth_service.hpp](src/services/auth_service.hpp) | **Refactor (마이그레이션 과도기)** | `AuthService`가 SQLite3와 MySQL을 과도기적으로 병행 지원하도록 리팩토링 |
+| **`eec4bc3`** | [auth_service.hpp](src/services/auth_service.hpp), `db_queries.hpp` | **Refactor (MySQL)** | Argon2id 해시가 자체 salt를 내장하므로 별도 DB `salt` 컬럼 삭제, 로그인/회원가입 로직을 MySQL C API(`mysql_stmt_*` Prepared Statement)로 전환 |
+| **`8da547b`** | [board_service.hpp](src/services/board_service.hpp), `docker/init.sql` | **Refactor (MySQL)** | `BoardService`를 MySQL C API로 전환하고 Docker용 초기 스키마(`init.sql`) 최초 작성 |
+| **`8f1c062`** | `3rdparty/mysql/include/*` | **Chore (Build)** | Windows 포팅을 위한 MySQL C API 벤더 헤더(`mysql.h`, `mysql_com.h` 등)를 프로젝트 내에 직접 포함 |
+| **`88a2be0`** | `CLAUDE.md`, `.agents/AGENTS.md` | **Chore (Tooling)** | Antigravity IDE 전용 `AGENTS.md` 제거 및 `CLAUDE.md` 체제로 AI 협업 규칙 통합 시작 |
+| **`5a5c426`** | `docker-compose.yml`, `docker/init.sql` | **Feat (Infra)** | MySQL(MariaDB) 컨테이너 기동을 위한 `docker-compose.yml` 신설 및 초기 스키마 DB 이름 수정 |
+| **`ce387d1`** | `CMakeLists.txt`, [auth_service.hpp](src/services/auth_service.hpp) | **Chore (Build)** | MySQL C API 연동 마무리 — CMake `POST_BUILD` 단계로 `libmysql.dll` 등 런타임 DLL 자동 배포, Windows 포팅용 `mysql.h`/`mysql_com.h` 수정 |
+| **`88a3329`** | `docker-compose.yml`, [main.cpp](src/main.cpp) | **Refactor (Infra)** | SQLite3(`server.db`) 완전 제거 및 MariaDB Docker 컨테이너 기반 인프라로 전환 |
+| **`645f02f`** | [db_manager.hpp](src/services/db_manager.hpp) | **Bug/Security (THREAT-07)** | DB 컨테이너 재시작 시 커넥션 풀의 기존 연결이 무효화되는 문제 발견, `getConnection()`에 재연결 재시도(5회, 500ms 간격) 로직 추가 — 단, 전체 재시도 실패 시 풀 슬롯이 영구 소실되는 근본 문제는 미해결 (상세: [TODO.md](TODO.md)) |
+| **`c5bacdf`** | [main.cpp](src/main.cpp) | **Bug/Security (THREAT-05-Followup)** | `RLIMIT_AS` 128MB 한도가 유휴 상태 스레드 스택만으로 소진되어 HTTPS 연결이 무한 대기(hang)되는 장애 발생 확인, 512MB로 임시 상향 (상세: 3.1-8) |
 
 ---
 
