@@ -171,6 +171,7 @@ public:
         // SELECT password, role FROM users WHERE username = ?;
         // 2-1. make bind list store input parameter
         MYSQL_BIND bind[1];
+        memset(bind, 0, sizeof(bind));
         bind[0].buffer_type = MYSQL_TYPE_STRING;
         bind[0].buffer = (void *)username.c_str();
         bind[0].buffer_length = username.length();
