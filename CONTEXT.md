@@ -11,7 +11,7 @@
 * **데이터베이스**: MySQL (MySQL C API 직접 연동, Connection Pool 구현) — 기존 SQLite3(`server.db`)에서 마이그레이션 완료
 * **빌드 시스템**: CMake (macOS/Unix 및 Windows 크로스 플랫폼 지원 구조)
 * **동작 포트**: `9090` 포트 (`0.0.0.0:9090` 리스닝)
-* **동작 제어**: `run.ps1` 및 `run.sh` 스크립트를 통한 빌드 및 실행 자동화
+* **동작 제어**: (2026-08-01부로 변경) 로컬 개발도 Docker 전용으로 전환, `docker compose up --build`로 빌드/실행 자동화. 기존 `run.ps1`/`run.sh` 네이티브 빌드 스크립트는 더 이상 사용하지 않음(파일 보관 여부는 별도 결정 사항, 상세: `TODO.md`)
 
 ---
 

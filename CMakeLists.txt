@@ -60,7 +60,7 @@ set(SOURCES
 if(APPLE)
     set(OPENSSL_ROOT_DIR "/opt/homebrew/opt/openssl")
 elseif(WIN32)
-    set(OPENSSL_ROOT_DIR "C:/Users/Bartmaeus/miniconda3/Library")
+    set(OPENSSL_ROOT_DIR "C:/Users/Bartimaeus/miniconda3/Library")
 endif()
 find_package(OpenSSL REQUIRED)
 
@@ -68,6 +68,8 @@ find_package(OpenSSL REQUIRED)
 find_path(MYSQL_INCLUDE_DIR mysql.h
     HINTS
         "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/mysql/include"
+        "$ENV{USERPROFILE}/miniconda3/Library/include"
+        "$ENV{USRPROFILE}/miniconda3/Library/include/mysql"
         "C:/Program Files/MySQL/MySQL Server 8.0/include"
         "/opt/homebrew/opt/mysql/include/mysql"
 )
@@ -76,6 +78,7 @@ find_library(MYSQL_LIBRARIES
     NAMES libmysql mysqlclient
     HINTS
         "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/mysql/lib"
+        "$ENV{USERPROFILE}/miniconda3/Library/lib"
         "C:/Program Files/MySQL/MySQL Server 8.0/lib"
         "/opt/homebrew/opt/mysql/lib"
 )

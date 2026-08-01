@@ -8,7 +8,12 @@
 
 - [/] **[CRITICAL] DB 커넥션 풀 고갈로 인한 전체 서비스 마비 버그 수정 (THREAT-07)**
     - [x] `db_manager.hpp`의 `getConnection()`에서 `mysql_ping()` 실패 후 `createConnection()` 재연결이 실패(nullptr 반환)하면 해당 풀 슬롯이 영구 소실되는 버그 발견 및 실제 재현 (Docker 환경에서 MariaDB 컨테이너 재시작 후 전체 API 응답 불가 상태 확인, exit code 137로 간접 확인) — 코드 흐름(pop_back → ping 실패 → createConnection 재실패 → nullptr → releaseConnection의 guard에서 소실) 전체 메커니즘 학습 및 이해 완료
-    - [ ] 재연결 실패 시 풀 슬롯을 잃지 않고 재시도하거나, 최소한 `nullptr` 반환 시 호출자가 이를 감지해 사용자에게 503 등 명확한 에러를 반환하도록 방어 로직 설계 (현재는 워커 스레드가 `pool_cv.wait()`에서 영구 대기하며 cpp-httplib 공용 스레드 풀 전체를 고갈시킴)
+    - [/] 재연결 실패 시 풀 슬롯을 잃지 않고 재시도하거나, 최소한 `nullptr` 반환 시 호출자가 이를 감지해 사용자에게 503 등 명확한 에러를 반환하도록 방어 로직 설계 (현재는 워커 스레드가 `pool_cv.wait()`에서 영구 대기하며 cpp-httplib 공용 스레드 풀 전체를 고갈시킴)
+        - [x] 설계 방향 확정: **B안(HikariCP 스타일)** — 요청 스레드는 `pool_cv.wait_for()`로 최대 대기시간만 기다리고 재연결도 1회만 빠르게 시도(fast-fail)하며, 별도 `std::jthread` 백그라운드 힐러가 주기적으로 소실된 슬롯을 채운다. (A안: 요청 스레드가 직접 온디맨드로 커넥션을 재생성하는 방식은 기각)
+        - [x] `db_manager.hpp`의 `getConnection()`에 bounded wait + fast-fail 재연결 + `cur_conns` 차감 로직 적용 (docker compose up --build로 컴파일/동작 확인 완료)
+        - [x] `db_manager.hpp`에 백그라운드 힐러 스레드(`pool_healer`) 추가 — 생성자에서 시작. `docker compose stop/start mariadb`로 실제 deficit(0/5) 발생 후 힐러가 한 틱 안에 5개까지 연달아 복구하고, 이후 연결 누수 없이(정상 상태에선 재생성 안 함) 도는 것까지 런타임 중 동작은 로그로 검증 완료
+        - [/] `~DbManager()` 소멸자에 `pool_healer.request_stop()` + `join()`을 `destroyPool()`보다 먼저 명시적으로 호출하는 로직 추가 (지금은 소멸자가 `destroyPool()`만 호출 — 힐러 스레드가 그 사이 살아있으면 이미 정리된 풀에 뒤늦게 연결을 끼워넣어 커넥션이 새는 레이스 컨디션 가능성 있음, 앱 종료 시나리오는 아직 미검증)
+        - [ ] 호출부(`auth_controller.hpp` 등)에서 "DB 연결 실패"와 "비즈니스 로직 실패(아이디 중복 등)"를 구분해 503 vs 409 응답 분리
     - [ ] 임시 복구 조치: `docker compose restart app`으로 pool 재초기화 확인
 
 - [ ] **API 레벨 자동 테스트/스모크 테스트 구축 (Infra)**
@@ -41,12 +46,16 @@
     - [ ] Windows 포팅을 위해 직접 수정한 `mysql.h`/`mysql_com.h`가 원본과 구분 없이 커밋되는 문제 논의 필요 (ABI 불일치 리스크, upstream diff 추적 불가)
     - [ ] 후보안: 파일 상단 수정 이력 주석 명시 / 별도 `.patch` 파일 분리 관리(vcpkg 방식 참고) 중 택1
 
-- [ ] **Docker 전용 빌드 전환에 따른 `main.cpp` OS 조건부 레거시 코드 정리 여부 결정 (THREAT-06-Followup)**
-    - [ ] `_WIN32`/`__APPLE__` 분기(Job Object 메모리 제한, Mach 커널 API 기반 `printMemoryUsage` 등)가 Docker-only 전환 이후 실제 빌드 경로에서는 전혀 컴파일되지 않는 죽은 코드가 됨 — 유지(향후 네이티브 빌드 대비) vs 완전 제거(Linux 전용 단순화) 결정 필요
-    - [ ] 유지하기로 할 경우, 로컬 clangd/IntelliSense가 실제 빌드 타겟(Linux)이 아닌 Windows 분기를 분석 대상으로 삼고 있어 버그가 에디터에서 안 걸리고 숨을 수 있다는 리스크를 인지하고 있을 것 (Linux 전용 `mach/mach.h` 컴파일 실패로 처음 발견된 사례 참고)
+- [/] **Docker 전용 빌드 전환에 따른 `main.cpp` OS 조건부 레거시 코드 정리 (THREAT-06-Followup)**
+    - [x] 결정 확정(2026-08-01): **로컬 개발도 Docker 전용으로 완전 전환**. 이후 `run.ps1` 네이티브 빌드는 더 이상 사용하지 않고, 컴파일/실행/검증은 항상 `docker compose up --build` 경로로만 진행한다.
+    - [ ] `main.cpp`의 `_WIN32`/`__APPLE__` 조건부 레거시 코드(Job Object 메모리 제한, Mach 커널 API 기반 `printMemoryUsage` 등) 제거 — Linux 전용으로 단순화
+    - [ ] `run.ps1` 스크립트 자체의 보관/삭제 여부는 학습자가 직접 결정 (AI가 임의로 삭제하지 않음)
 
-- [ ] **`RLIMIT_AS` 상향(128MB→512MB)에 따른 THREAT-05(DoS) 실습 조건 재설계 (THREAT-05-Followup)**
-    - [ ] 기존 128MB 한도가 idle 상태 스레드 스택 오버헤드만으로 거의 소진되어 신규 연결 스레드의 스택 할당이 실패, TLS 핸드셰이크가 응답 없이 무한 행(hang)되는 실제 장애로 이어짐을 확인(2026-07-31) → 임시 조치로 512MB 상향하여 정상화됨(상세: `CONTEXT.md` 3.1-8)
-    - [ ] 512MB는 정상 가동 확보를 위한 응급 조치이며 DoS 방어선으로는 느슨함 — Ochlos 공격 실습(`memory_exhaustion.py`) 재설계 시 이 상향된 한도 기준으로 공격 강도/시나리오 재산정 필요
-    - [ ] 근본 대안 검토: ① 스레드 스택 크기를 `pthread_attr_setstacksize` 등으로 명시적으로 축소해 스레드당 오버헤드 자체를 줄이는 방향, ② Docker `cgroups` 기반 물리 메모리 제한(`mem_limit`)으로 전환하고 `RLIMIT_AS`는 보조 수단으로 격하 — 512MB 고정 상향 대신 근본 해결책 채택 여부 논의 필요
+- [/] **`RLIMIT_AS` 상향(128MB→512MB)에 따른 THREAT-05(DoS) 실습 조건 재설계 (THREAT-05-Followup)**
+    - [x] 기존 128MB 한도가 idle 상태 스레드 스택 오버헤드만으로 거의 소진되어 신규 연결 스레드의 스택 할당이 실패, TLS 핸드셰이크가 응답 없이 무한 행(hang)되는 실제 장애로 이어짐을 확인(2026-07-31) → 임시 조치로 512MB 상향하여 정상화됨(상세: `CONTEXT.md` 3.1-8)
+    - [x] 512MB는 정상 가동 확보를 위한 응급 조치이며 DoS 방어선으로는 느슨함 — Ochlos 공격 실습(`memory_exhaustion.py`) 재설계 시 이 상향된 한도 기준으로 공격 강도/시나리오 재산정 필요
+    - [x] 결정 확정(2026-08-01): `RLIMIT_AS`는 가상 주소공간(VSS) 기준이라 실제 물리 메모리 압박(RSS)과 상관관계가 약해 1차 방어 수단으로 부적절함을 확인 → **1차 방어선을 Docker `cgroups` 기반 물리 메모리 제한(`docker-compose.yml`의 `mem_limit`)으로 전환**하고, 코드 레벨 `RLIMIT_AS`(`main.cpp`의 `limitProcessMemory()`)는 일단 비활성화(호출 제거)하기로 결정
+    - [ ] `docker-compose.yml`의 `app` 서비스에 `mem_limit` 설정 추가
+    - [ ] `main.cpp`의 `limitProcessMemory(512)` 호출 제거/비활성화 (OS 레벨 제한 중단)
+    - [ ] (나중) OS 레벨 `RLIMIT_AS`를 소프트 리밋(2단 방어의 보조 수단)으로 재도입할지 검토 — 재도입 시 스레드 스택 크기(`pthread_attr_setstacksize`)를 함께 축소해 가상주소 오버헤드 자체를 줄이는 방향도 함께 고려
 

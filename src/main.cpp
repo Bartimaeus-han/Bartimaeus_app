@@ -30,44 +30,8 @@ void handle_signal(int signal) {
     }
 }
 
-void limitProcessMemory(size_t limit_mb) {
-    struct rlimit rl;
-    rl.rlim_cur = limit_mb * 1024 * 1024;
-    rl.rlim_max = limit_mb * 1024 * 1024;
-
-    if (setrlimit(RLIMIT_AS, &rl) != 0) {
-        std::cerr << "[Memory Limit] Failed to set memory limit using setrlimit." << std::endl;
-        return;
-    }
-
-    std::cout << "[Memory Limit] Process memory limited to " << limit_mb << " MB successfully on Linux." << std::endl;
-}
-
-// Function to print the process memory usage on startup
-void printMemoryUsage() {
-    std::ifstream status_file("/proc/self/status");
-    std::string line;
-    double physical_mb = 0.0;
-
-    while (std::getline(status_file, line)) {
-        if (line.rfind("VmRSS:", 0) == 0) {
-            std::istringstream iss(line.substr(6));
-            long kb = 0;
-            iss >> kb;
-            physical_mb = static_cast<double>(kb) / 1024.0;
-            break;
-        }
-    }
-
-    std::cout << "[System Info] Memory Usage:" << std::endl;
-    std::cout << "  - Physical Memory (resident): " << std::fixed << std::setprecision(2) << physical_mb << " MB" << std::endl;
-}
-
 int main() {
     try {
-        // Limit the server process memory to 512MB
-        limitProcessMemory(512);
-
         // Initialize HTTPS server by setting paths to self-signed certificate and private key files (/certs/cert.pem&key.pem)
         httplib::SSLServer svr("./certs/cert.pem", "./certs/key.pem");
         global_svr = &svr; // Register current server address in the global pointer
@@ -288,7 +252,6 @@ int main() {
 
         std::cout << "========================================================" << std::endl;
         std::cout << " Bartimaeus_app is starting on https://localhost:9090" << std::endl;
-        printMemoryUsage();
         std::cout << "========================================================" << std::endl;
 
         // Start background GC(Garbage Collector) thread
