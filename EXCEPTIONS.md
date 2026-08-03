@@ -31,3 +31,14 @@
     - 최대 길이는 띄어쓰기를 포함한 긴 문장(Passphrase)을 쓸 수 있도록 **64자 이상** 충분히 허용합니다.
 - **유출된 비밀번호 대조 (Blacklisting)**:
     - 특수문자 조합 여부보다, 이미 해킹 사이트에 유출된 흔한 비밀번호 사전(예: `password`, `12345678`)에 등록된 단어인지를 비교하여 등록을 차단하는 것이 훨씬 안전하다고 봅니다.
+
+---
+
+## 2. C++ 코드 레벨 예외 및 에러 핸들링 표준 (Code Exception Standards)
+
+### 2.1 `MYSQL_BIND` 구조체는 선언 즉시 반드시 `memset`으로 전체 초기화할 것
+
+- **규칙**: `MYSQL_BIND` 변수를 선언한 직후, 실제로 쓸 필드(`buffer_type`, `buffer`, `buffer_length`, `length` 등)를 채우기 전에 반드시 `memset(변수명, 0, sizeof(변수명));`을 먼저 호출한다. 파라미터 바인딩(param bind)과 결과 바인딩(result bind) 모두 예외 없이 적용하며, 새 쿼리를 추가할 때마다 이 초기화 유무를 코드 리뷰 체크리스트에 포함시킨다.
+- **배경 (실제 사고 사례, 2026-08-01/02, THREAT-08)**: [auth_service.hpp](src/services/auth_service.hpp)의 `login()` 함수에서 파라미터 바인딩용 `MYSQL_BIND bind[1]`을 선언한 뒤 `buffer_type`/`buffer`/`buffer_length` 세 필드만 채우고 `memset`을 빼먹은 채 `mysql_stmt_bind_param()`에 넘겼다. 스택에 위치한 이 C 구조체는 `is_null`, `length`, `is_unsigned`, `error` 같은 나머지 멤버(대부분 포인터)에 스택의 쓰레기 값이 그대로 남아있었고, libmariadb 내부에서 이 쓰레기 포인터를 역참조하며 General Protection Fault(SIGSEGV)가 발생했다. 결과적으로 `/login` 요청이 들어올 때마다(유저 존재 여부와 무관하게, 즉 DB 조회 결과가 나오기도 전에 파라미터 바인딩 단계에서) 100% 서버가 죽고 Docker `restart: unless-stopped` 정책으로 즉시 재기동되는 패턴이 반복되었다. 이 과정에서 TLS 연결이 정상 종료 없이 강제로 끊기다 보니, 브라우저에는 "Server Communication Error"라는 원인 불명의 네트워크 에러만 표시되어 초기에는 DB/네트워크 계층 문제로 오인하기 쉬웠다.
+- **진단 방법**: 이런 유형의 크래시는 애플리케이션 로그에 어떤 에러 메시지도 남기지 않는다 — 프로세스 자체가 죽어버리므로 `std::cerr`/`try-catch`/`set_exception_handler` 방어망을 전부 우회한다. `docker inspect --format '{{.State.ExitCode}}'`로 SIGSEGV 여부(139)를 먼저 확인하고, 컨테이너 안에 gdb가 없다면 `dmesg`(WSL2/Linux 커널 로그)에서 `general protection fault ... in libmariadb.so.3[오프셋]` 형태의 트랩 기록을 찾아, 크래시 발생 오프셋이 재현 시마다 동일한지 대조하는 방식으로 특정 코드 경로의 결정론적 버그임을 검증할 수 있다.
+- **감사 결과(2026-08-02)**: 같은 프로젝트 내 [board_service.hpp](src/services/board_service.hpp)의 `MYSQL_BIND` 선언 4곳(64, 136, 206, 226, 295번째 줄)은 모두 `memset`이 정상적으로 존재함을 확인했다 — 이번 결함은 `auth_service.hpp`의 `login()` 한 곳에 국한된 것이었지 프로젝트 전역 패턴은 아니었다. 다만 이는 "현재 시점에" 문제가 없다는 뜻일 뿐, 순정 MySQL C API를 계속 직접 다루는 한 새 쿼리를 추가할 때마다 동일한 실수가 재발할 수 있는 구조적 위험 자체는 해소되지 않는다. 장기적으로는 `TODO.md`(THREAT-06-Followup)의 외부 커넥션 풀/ORM 라이브러리 검토 시, 이런 저수준 초기화 실수 자체가 원천적으로 불가능한 RAII 래퍼 도입 여부도 함께 고려해야 한다.

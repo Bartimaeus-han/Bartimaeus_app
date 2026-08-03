@@ -15,9 +15,9 @@
 
 #include <cstring>
 #include <fstream>
+#include <iomanip>
 #include <sstream>
 #include <sys/resource.h>
-#include <iomanip>
 
 // to allow the signal handler function to access the server object
 httplib::Server *global_svr = nullptr;
@@ -68,7 +68,10 @@ int main() {
 
             // Check if it is an API request
             // If api, return safe JSON response
-            bool is_api_request = req.path.rfind("/api", 0) == 0;
+            bool is_api_request = req.path.rfind("/api", 0) == 0 || req.path == "/login" || req.path == "/signup" || req.path == "/logout";
+
+            if (!res.body.empty())
+                return;
 
             if (is_api_request) {
                 std::string json_res = R"({"status":"error", "message":"An unexpected error occurred.", "tracking_id":")" + tracking_id + R"("})";

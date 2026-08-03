@@ -6,15 +6,15 @@
 
 ## 📌 보안 강화 작업 목록 (Checklist)
 
-- [/] **[CRITICAL] DB 커넥션 풀 고갈로 인한 전체 서비스 마비 버그 수정 (THREAT-07)**
+- [x] **[CRITICAL] DB 커넥션 풀 고갈로 인한 전체 서비스 마비 버그 수정 (THREAT-07)** — 코드 반영 및 런타임 검증까지 전부 완료, **커밋만 아직 안 됨** (커밋 후 `CONTEXT.md` 기록 및 이 항목 pruning 예정)
     - [x] `db_manager.hpp`의 `getConnection()`에서 `mysql_ping()` 실패 후 `createConnection()` 재연결이 실패(nullptr 반환)하면 해당 풀 슬롯이 영구 소실되는 버그 발견 및 실제 재현 (Docker 환경에서 MariaDB 컨테이너 재시작 후 전체 API 응답 불가 상태 확인, exit code 137로 간접 확인) — 코드 흐름(pop_back → ping 실패 → createConnection 재실패 → nullptr → releaseConnection의 guard에서 소실) 전체 메커니즘 학습 및 이해 완료
-    - [/] 재연결 실패 시 풀 슬롯을 잃지 않고 재시도하거나, 최소한 `nullptr` 반환 시 호출자가 이를 감지해 사용자에게 503 등 명확한 에러를 반환하도록 방어 로직 설계 (현재는 워커 스레드가 `pool_cv.wait()`에서 영구 대기하며 cpp-httplib 공용 스레드 풀 전체를 고갈시킴)
+    - [x] 재연결 실패 시 풀 슬롯을 잃지 않고 재시도하거나, 최소한 `nullptr` 반환 시 호출자가 이를 감지해 사용자에게 503 등 명확한 에러를 반환하도록 방어 로직 설계 (현재는 워커 스레드가 `pool_cv.wait()`에서 영구 대기하며 cpp-httplib 공용 스레드 풀 전체를 고갈시킴)
         - [x] 설계 방향 확정: **B안(HikariCP 스타일)** — 요청 스레드는 `pool_cv.wait_for()`로 최대 대기시간만 기다리고 재연결도 1회만 빠르게 시도(fast-fail)하며, 별도 `std::jthread` 백그라운드 힐러가 주기적으로 소실된 슬롯을 채운다. (A안: 요청 스레드가 직접 온디맨드로 커넥션을 재생성하는 방식은 기각)
         - [x] `db_manager.hpp`의 `getConnection()`에 bounded wait + fast-fail 재연결 + `cur_conns` 차감 로직 적용 (docker compose up --build로 컴파일/동작 확인 완료)
         - [x] `db_manager.hpp`에 백그라운드 힐러 스레드(`pool_healer`) 추가 — 생성자에서 시작. `docker compose stop/start mariadb`로 실제 deficit(0/5) 발생 후 힐러가 한 틱 안에 5개까지 연달아 복구하고, 이후 연결 누수 없이(정상 상태에선 재생성 안 함) 도는 것까지 런타임 중 동작은 로그로 검증 완료
-        - [/] `~DbManager()` 소멸자에 `pool_healer.request_stop()` + `join()`을 `destroyPool()`보다 먼저 명시적으로 호출하는 로직 추가 (지금은 소멸자가 `destroyPool()`만 호출 — 힐러 스레드가 그 사이 살아있으면 이미 정리된 풀에 뒤늦게 연결을 끼워넣어 커넥션이 새는 레이스 컨디션 가능성 있음, 앱 종료 시나리오는 아직 미검증)
-        - [ ] 호출부(`auth_controller.hpp` 등)에서 "DB 연결 실패"와 "비즈니스 로직 실패(아이디 중복 등)"를 구분해 503 vs 409 응답 분리
-    - [ ] 임시 복구 조치: `docker compose restart app`으로 pool 재초기화 확인
+        - [x] `~DbManager()` 소멸자에 `pool_healer.request_stop()` + `join()`을 `destroyPool()`보다 먼저 명시적으로 호출하는 로직 추가 (코드 확인 결과 커밋 `a147d15`에서 이미 적용 완료됨 — `db_manager.hpp:99-105`. 로그인 요청으로 `DbManager` 싱글턴을 강제 초기화해 `pool_healer`를 살려둔 상태에서 `docker compose stop app`(SIGTERM)으로 종료 시나리오 실증 검증 완료 — 종료 직전까지 찍히던 `Healer tick.` 로그가 `Web Server stopped safely.` 이후로는 더 이상 찍히지 않고, 크래시/에러 없이 `ExitCode 0`으로 정상 종료됨을 확인. 단, `pool_healer.join()`이 `mysql_real_connect()` 블로킹 호출 도중이면 grace period 내 종료를 보장 못 하는 구조적 약점은 미해결 상태로 남아있음)
+        - [x] 호출부에서 "DB 연결 실패"와 "비즈니스 로직 실패(아이디 중복 등)"를 구분해 503 vs 409 응답 분리 — `auth_service.hpp`의 `signUp()`/`login()`을 `bool` 대신 `AuthResult{Success,Fail,DbError}` enum 반환으로 전환하고, `auth_controller.hpp`의 `handleSignUp`/`handleLogin`을 `switch`문으로 분기(409/401 vs 503)하도록 수정. `docker compose stop mariadb` 상태에서 실제로 로그인 시도 시 503 + `"Service temporarily unavailable"` 응답을 curl로 실증 검증 완료
+        - [x] **(부수 발견 및 수정)** [main.cpp:53-113](src/main.cpp)의 `svr.set_error_handler`가 상태 코드 400 이상이면 컨트롤러/미들웨어가 이미 채워놓은 `res.body`를 무조건 덮어써서, 421/409/503은 물론 `middleware.hpp`의 401/403 메시지까지 전부 범용 "An unexpected error occurred." 문구로 뭉개지고 있던 기존 버그를 발견. `if (!res.body.empty()) return;` 가드 추가로 해결하고, 겸사겸사 `is_api_request` 판별 조건에 `/login`,`/signup`,`/logout`(비-`/api` 접두사 JSON 라우트) 추가해 이 세 라우트도 JSON 에러 응답을 받도록 수정
 
 - [ ] **API 레벨 자동 테스트/스모크 테스트 구축 (Infra)**
     - [ ] 회원가입/로그인/게시글 CRUD 등 핵심 API를 대상으로 한 자동화된 스모크 테스트 스크립트 도입 검토 (매번 수동 curl 호출 대신, Docker 환경 기동 후 자동으로 헬스체크 + 핵심 플로우 검증)

@@ -34,6 +34,9 @@ struct DbConnectionGuard {
     }
 };
 
+// 쿼리 실행에 대한 실패 결과가 DB자체의 문제로 인한 실패인지, 쿼리 실행에 대한 결과가 실패인지를 구분하기 위함.
+enum class AuthResult { Success, Fail, DbError };
+
 class AuthService {
 private:
     std::unordered_map<std::string, User> user_db; // Virtual In-Memory DB
@@ -54,14 +57,14 @@ public:
     // 4. 결과 패치
 
     // Secure sign up logic
-    bool signUp(const std::string &username, const std::string &password) {
+    AuthResult signUp(const std::string &username, const std::string &password) {
         std::lock_guard<std::mutex> lock(db_mutex);
 
         // 1. Borrow DB connection from pool
         MYSQL *conn = DbManager::getInstance().getConnection();
         if (!conn) {
             std::cerr << "[SignUp Fail] Could not get database connection. " << std::endl;
-            return false;
+            return AuthResult::DbError;
         }
 
         // 2. Check duplicate username using MySQL Prepared Statement
@@ -73,7 +76,7 @@ public:
                 mysql_stmt_close(check_stmt);
 
             DbManager::getInstance().releaseConnection(conn); // Release connection
-            return false;
+            return AuthResult::DbError;
         }
 
         // check_stmt에 바인딩 해줄 데이터를 만드는 곳
@@ -89,7 +92,7 @@ public:
 
             mysql_stmt_close(check_stmt);
             DbManager::getInstance().releaseConnection(conn);
-            return false;
+            return AuthResult::DbError;
         }
 
         // 쿼리가 실행된 결과셋을 저장하는 기능 (쿼리가 실행 되어도 일단은 스트림에 있지 메모리에 바로 저장되지는 않는다)
@@ -98,7 +101,7 @@ public:
             std::cout << "[SignUp Fail] Duplicate username: " << username << std::endl;
             mysql_stmt_close(check_stmt);
             DbManager::getInstance().releaseConnection(conn);
-            return false;
+            return AuthResult::Fail;
         }
         // check_stmt를 해제한다.
         // 왜 해제하나요? -> 이 stmt는 유저 중복 확인만을 위해 생성 되었기 때문이다.
@@ -112,7 +115,7 @@ public:
                 mysql_stmt_close(insert_stmt);
 
             DbManager::getInstance().releaseConnection(conn);
-            return false;
+            return AuthResult::DbError;
         }
 
         std::string hashed_password = hashPasswordArgon2id(password);
@@ -133,16 +136,16 @@ public:
 
             mysql_stmt_close(insert_stmt);
             DbManager::getInstance().releaseConnection(conn);
-            return false;
+            return AuthResult::DbError;
         }
 
         mysql_stmt_close(insert_stmt);
         DbManager::getInstance().releaseConnection(conn);
-        return true;
+        return AuthResult::Success;
     }
 
     // 2. Secure log in logic
-    bool login(const std::string &username, const std::string &password) {
+    AuthResult login(const std::string &username, const std::string &password) {
         // 1. Get Connection
         // 1-1. Using mutex for safe(Concurrency Control) connection
         std::lock_guard<std::mutex> lock(db_mutex);
@@ -151,7 +154,7 @@ public:
         MYSQL *conn = DbManager::getInstance().getConnection();
         // 1-3. check connection instance is valiable
         if (!conn)
-            return false;
+            return AuthResult::DbError;
 
         // 1-4. initialize the stmt using conn instance
         MYSQL_STMT *stmt = mysql_stmt_init(conn);
@@ -164,7 +167,7 @@ public:
             // 1-5-2.
             DbManager::getInstance().releaseConnection(conn);
 
-            return false;
+            return AuthResult::DbError;
         }
 
         // 2. Binding input parameter
@@ -182,7 +185,7 @@ public:
             // 2-2-... close stmt and release connection (ending sequence)
             mysql_stmt_close(stmt);
             DbManager::getInstance().releaseConnection(conn);
-            return false;
+            return AuthResult::DbError;
         }
 
         // 3.Result Binding
@@ -207,7 +210,7 @@ public:
             std::cerr << "[Login Error] Bind result failed: " << mysql_stmt_error(stmt) << std::endl;
             mysql_stmt_close(stmt);
             DbManager::getInstance().releaseConnection(conn);
-            return false;
+            return AuthResult::DbError;
         }
 
         // 4. Fetch Result & Verify Password
@@ -217,7 +220,7 @@ public:
             std::cout << "[Login Fail] User not found: " << username << std::endl;
             mysql_stmt_close(stmt);
             DbManager::getInstance().releaseConnection(conn);
-            return false;
+            return AuthResult::Fail;
         }
 
         bool is_valid = verifyPasswordArgon2id(password, db_password_hash);
@@ -227,10 +230,10 @@ public:
 
         if (is_valid) {
             std::cout << "[Login Success] Welcome, " << username << "!" << std::endl;
-            return true;
+            return AuthResult::Success;
         } else {
             std::cout << "[Login Fail] Invalid password for user: " << username << std::endl;
-            return false;
+            return AuthResult::Fail;
         }
     }
 

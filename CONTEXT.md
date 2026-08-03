@@ -67,6 +67,7 @@
 | **`88a3329`** | `docker-compose.yml`, [main.cpp](src/main.cpp) | **Refactor (Infra)** | SQLite3(`server.db`) 완전 제거 및 MariaDB Docker 컨테이너 기반 인프라로 전환 |
 | **`645f02f`** | [db_manager.hpp](src/services/db_manager.hpp) | **Bug/Security (THREAT-07)** | DB 컨테이너 재시작 시 커넥션 풀의 기존 연결이 무효화되는 문제 발견, `getConnection()`에 재연결 재시도(5회, 500ms 간격) 로직 추가 — 단, 전체 재시도 실패 시 풀 슬롯이 영구 소실되는 근본 문제는 미해결 (상세: [TODO.md](TODO.md)) |
 | **`c5bacdf`** | [main.cpp](src/main.cpp) | **Bug/Security (THREAT-05-Followup)** | `RLIMIT_AS` 128MB 한도가 유휴 상태 스레드 스택만으로 소진되어 HTTPS 연결이 무한 대기(hang)되는 장애 발생 확인, 512MB로 임시 상향 (상세: 3.1-8) |
+| **`6e65963`** | [auth_service.hpp](src/services/auth_service.hpp) | **Bug/Security (THREAT-08)** | `login()`의 파라미터 바인딩용 `MYSQL_BIND bind[1]`에 `memset` 초기화가 누락되어 `is_null` 등 미초기화 포인터 필드가 스택 쓰레기 값으로 남아있었고, `mysql_stmt_bind_param()` 호출 시 `libmariadb.so.3` 내부에서 이를 역참조하며 General Protection Fault(SIGSEGV) 발생 — 유저 존재 여부와 무관하게 `/login` 요청마다 100% 서버 크래시로 이어지는 치명적 가용성 버그였음(2026-08-01/02). `docker inspect`의 ExitCode 139 및 `dmesg` 커널 트랩 로그(`libmariadb.so.3+0x2bbef`, 매 크래시 동일 오프셋)로 재현성을 실증 확인한 뒤 `memset(bind, 0, sizeof(bind));` 한 줄 추가로 수정 (상세: `EXCEPTIONS.md` 2.1) |
 
 ---
 

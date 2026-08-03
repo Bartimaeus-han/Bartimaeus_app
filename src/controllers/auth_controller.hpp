@@ -50,13 +50,19 @@ public:
             return;
         }
 
-        if (auth_service.signUp(username, password)) {
+        switch (auth_service.signUp(username, password)) {
+        case AuthResult::Success:
             res.status = 201;
             res.set_content(R"({"status":"success", "message":"User registered successfully"})", "application/json");
-        } else {
+            break;
+        case AuthResult::Fail:
             res.status = 409;
             res.set_content(R"({"status":"error", "message":"Username already exists"})", "application/json");
-            return;
+            break;
+        case AuthResult::DbError:
+            res.status = 503;
+            res.set_content(R"({"status":"error", "message":"Service temporarily unavailable"})", "application/json");
+            break;
         }
     }
 
@@ -91,7 +97,8 @@ public:
             return;
         }
 
-        if (auth_service.login(username, password)) {
+        switch (auth_service.login(username, password)) {
+        case AuthResult::Success: {
             res.status = 200;
 
             // Reset failure attempts upon successful login
@@ -101,12 +108,20 @@ public:
             // Vulnerable Login authentication - plain text cookie
             res.set_header("Set-Cookie", "auth_session=" + session_id + "; Path=/; HttpOnly; SameSite=Lax; Secure;");
             res.set_content(R"({"status":"success", "message":"Login successful"})", "application/json");
-        } else {
+            break;
+        }
+        case AuthResult::Fail:
+
             // Record failure and check for lockout
             login_limiter.recordFailure(username);
 
             res.status = 401;
             res.set_content(R"({"status":"error", "message":"Invalid username or password"})", "application/json");
+            break;
+        case AuthResult::DbError:
+            res.status = 503;
+            res.set_content(R"({"status":"error", "message":"Service temporarily unavailable"})", "application/json");
+            break;
         }
     }
 
