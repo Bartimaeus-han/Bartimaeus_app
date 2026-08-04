@@ -17,7 +17,6 @@
 #include <fstream>
 #include <iomanip>
 #include <sstream>
-#include <sys/resource.h>
 
 // to allow the signal handler function to access the server object
 httplib::Server *global_svr = nullptr;
