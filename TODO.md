@@ -6,6 +6,10 @@
 
 ## 📌 보안 강화 작업 목록 (Checklist)
 
+- [ ] **정적 페이지 role 체크 방식의 확장성 개선 검토 (THREAT-09-Followup)**
+    - [ ] 현재 `pre_routing_handler`(`main.cpp`)의 `admin.html` role 체크는 `if (req.path == "/admin.html") { ... }` 형태로 페이지 경로 하나하나에 개별 하드코딩된 방식 — role 체크가 필요한 페이지가 늘어날수록 동일한 조건문을 계속 추가해야 하는 구조라 확장성이 떨어짐(2026-08-07 논의)
+    - [ ] 실무에서는 "경로 → 필요 role" 매핑 테이블(선언형 설정)을 두고 공통 로직에서 순회 검사하는 패턴(예: Spring Security의 `antMatchers().hasRole()` 유사 개념)을 사용 — 다만 현재는 role 체크 대상이 `admin.html` 하나뿐이라 지금 당장 리팩터링하는 것은 과설계로 판단, 대상 페이지가 2개 이상으로 늘어나는 시점에 착수 검토
+
 - [ ] **API 레벨 자동 테스트/스모크 테스트 구축 (Infra)**
     - [ ] 회원가입/로그인/게시글 CRUD 등 핵심 API를 대상으로 한 자동화된 스모크 테스트 스크립트 도입 검토 (매번 수동 curl 호출 대신, Docker 환경 기동 후 자동으로 헬스체크 + 핵심 플로우 검증)
     - [ ] 도구 후보(예: 간단한 Python/curl 스크립트 vs pytest 기반) 및 실행 시점(로컬 vs CI) 논의 필요
@@ -27,12 +31,6 @@
 - [ ] **벤더 MySQL 헤더(`3rdparty/mysql/include`) 수정사항 관리 방식 재검토 (THREAT-06-Followup)**
     - [ ] Windows 포팅을 위해 직접 수정한 `mysql.h`/`mysql_com.h`가 원본과 구분 없이 커밋되는 문제 논의 필요 (ABI 불일치 리스크, upstream diff 추적 불가)
     - [ ] 후보안: 파일 상단 수정 이력 주석 명시 / 별도 `.patch` 파일 분리 관리(vcpkg 방식 참고) 중 택1
-
-- [/] **Docker 전용 빌드 전환에 따른 `main.cpp` OS 조건부 레거시 코드 정리 (THREAT-06-Followup)**
-    - [x] 결정 확정(2026-08-01): **로컬 개발도 Docker 전용으로 완전 전환**. 이후 `run.ps1` 네이티브 빌드는 더 이상 사용하지 않고, 컴파일/실행/검증은 항상 `docker compose up --build` 경로로만 진행한다.
-    - [x] `main.cpp`의 `_WIN32`/`__APPLE__` 조건부 레거시 코드 및 `limitProcessMemory()`/`printMemoryUsage()` 함수 전체가 커밋 `a147d15`에서 이미 제거되어 있음을 코드 확인(2026-08-04) — Linux 전용으로 이미 단순화된 상태
-    - [x] 위 함수 제거의 잔재로 남아있는 `main.cpp`의 미사용 `#include <sys/resource.h>` (line 20) 정리 완료 — 학습자 직접 삭제 후 `docker compose up --build` 정상 실행 확인(2026-08-04)
-    - [x] `run.ps1` 보관/삭제 여부 결정 완료 — 삭제 대신 Docker 전체 리셋+재빌드(`down` → `build --no-cache` → `up`) 스크립트로 용도 전환, 실행 후 `docker compose ps`/`logs`로 app·mariadb 정상 기동 확인(2026-08-04)
 
 - [/] **`RLIMIT_AS` 상향(128MB→512MB)에 따른 THREAT-05(DoS) 실습 조건 재설계 (THREAT-05-Followup)**
     - [x] 기존 128MB 한도가 idle 상태 스레드 스택 오버헤드만으로 거의 소진되어 신규 연결 스레드의 스택 할당이 실패, TLS 핸드셰이크가 응답 없이 무한 행(hang)되는 실제 장애로 이어짐을 확인(2026-07-31) → 임시 조치로 512MB 상향하여 정상화됨(상세: `CONTEXT.md` 3.1-8)

@@ -11,6 +11,7 @@
 #include <csignal>                      // for signal processing
 #include <httplib.h>
 #include <iostream>
+#include <string>
 #include <thread> // For starting background thread
 
 #include <cstring>
@@ -167,26 +168,43 @@ int main() {
 
         BoardController board_controller(board_service, auth_service); // Cretae board controller instance
 
-        svr.set_pre_routing_handler([&session_manager](const httplib::Request &req, httplib::Response &res) {
-            if (req.path == "/" || req.path == "/index.html") {
-                bool is_logged_in = false;
+        svr.set_pre_routing_handler([&session_manager, &auth_service](const httplib::Request &req, httplib::Response &res) {
+            // 기본 경로거나 .html 파일은 기본적으로 접근 시 검사가 필요한 것으로 간주 (default-deny 구조)
+            bool is_page_request = (req.path == "/" || req.path.ends_with(".html"));
+            // 아래 세 페이지만 로그인 없이 접근이 가능한 것으로 설정 (white-list 형식)
+            bool is_public_page = (req.path == "/login.html" || req.path == "/signup.html" || req.path == "/error.html");
+
+            // default-deny가 아닌 것 (.js, /api/* 등)
+            // 로그인 없이 접근 가능한 페이지에 대한 요청인 경우
+            if (!is_page_request || is_public_page)
+                return httplib::Server::HandlerResponse::Unhandled;
+
+            {
+                std::string username;
 
                 // Session validation phase
                 if (req.has_header("Cookie")) {
                     std::string cookie = req.get_header_value("Cookie");
                     std::string session_id = getCookieValue(cookie, "auth_session");
 
-                    // if session is exist
-                    if (!session_manager.validateSession(session_id).empty()) {
-                        is_logged_in = true;
-                    }
+                    username = session_manager.validateSession(session_id);
                 }
+
+                bool is_logged_in = !username.empty();
 
                 if (is_logged_in) {
                     // Guide to 'index.html' only if entering via root(/)
                     if (req.path == "/") {
                         res.set_redirect("/index.html");
                         return httplib::Server::HandlerResponse::Handled;
+                    }
+                    // admin.html의 경우에는 role까지 확인하도록 한다.
+                    if (req.path == "/admin.html") {
+                        std::string role = auth_service.getUserRole(username);
+                        if (role != "ADMIN") {
+                            res.status = 403;
+                            return httplib::Server::HandlerResponse::Handled;
+                        }
                     }
                     // If already requesting index.html, bypass control and pass to static handler
                     return httplib::Server::HandlerResponse::Unhandled;
