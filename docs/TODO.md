@@ -6,6 +6,15 @@
 
 ## 📌 보안 강화 작업 목록 (Checklist)
 
+- [ ] **컨테이너 재생성 시 에러 로그 유실 문제 (Infra-Logging)**
+    - [x] 발견 경위(2026-08-07): 루트 파일 정리 과정에서 발견 — `docker-compose.yml`의 `app` 서비스에 로그 관련 볼륨 마운트가 없어, `helpers.hpp:104`가 쓰는 `error.log`가 컨테이너의 임시 파일시스템(`/app/error.log`)에만 존재함을 확인. `docker exec`로 실행 중인 컨테이너 내부를 직접 열어 로그 파일 부재를 실증 확인. `docker compose down`이나 `--build` 재생성 시 로그가 통째로 유실되는 구조
+    - [ ] 조치 방향(2026-08-07 사용자 확정): 임시 방편(바인드 마운트 등)으로 지금 당장 땜질하지 않고, 착수 자체를 `ROADMAP.md` Phase 2(웹 서버 앞단 Reverse Proxy & WAF 구축) 시작 시점까지 통째로 보류하기로 결정 — 그때 방화벽/프록시 레이어의 로그까지 함께 고려해서, 처음부터 stdout/stderr 기반 로깅 + 중앙 로그 저장소(Phase 3 아나블레포: ELK/Loki 등) 방식으로 한 번에 설계할 계획. 그 전까지는 로그 유실이 알려진 한계로 존재하는 상태를 그대로 감수
+
+- [/] **특정 프로세스(게시글 등록)에 대한 자동화 공격 통제 미흡 (THREAT-10)**
+    - [x] `Web_Application_Guide.md`(KISA 가이드) 20번 "자동화 공격" 항목 기준 점검 시작(2026-08-07). 로그인(`/login`)에는 이미 `LoginLimiter`로 무차별 대입 방어가 적용되어 있음(커밋 `80a23eb`)을 확인했으나, 게시글 등록(`POST /api/post`, [board_controller.hpp:20](../src/controllers/board_controller.hpp#L20)의 `handleCreatePost`)에는 동일한 통제가 전혀 없음을 코드로 확인 — `requireAuthAndCsrf`로 인증/CSRF만 걸려있을 뿐, 횟수 제한이나 최소 요청 간격 제어가 없어 로그인된 사용자(또는 탈취된 세션)가 스크립트로 무제한 반복 등록 가능
+    - [ ] 공격 선행 학습 모델에 따라 Ochlos로 게시글 등록 스팸/DB 자원 고갈 공격 실제 시연 예정
+    - [ ] 방어책 설계 및 조치 (예: `LoginLimiter`와 유사한 사용자별 rate limiter 도입 여부, 기존 클래스 재사용 vs 신규 범용 `RateLimiter`로 일반화 여부 결정)
+
 - [ ] **정적 페이지 role 체크 방식의 확장성 개선 검토 (THREAT-09-Followup)**
     - [ ] 현재 `pre_routing_handler`(`main.cpp`)의 `admin.html` role 체크는 `if (req.path == "/admin.html") { ... }` 형태로 페이지 경로 하나하나에 개별 하드코딩된 방식 — role 체크가 필요한 페이지가 늘어날수록 동일한 조건문을 계속 추가해야 하는 구조라 확장성이 떨어짐(2026-08-07 논의)
     - [ ] 실무에서는 "경로 → 필요 role" 매핑 테이블(선언형 설정)을 두고 공통 로직에서 순회 검사하는 패턴(예: Spring Security의 `antMatchers().hasRole()` 유사 개념)을 사용 — 다만 현재는 role 체크 대상이 `admin.html` 하나뿐이라 지금 당장 리팩터링하는 것은 과설계로 판단, 대상 페이지가 2개 이상으로 늘어나는 시점에 착수 검토

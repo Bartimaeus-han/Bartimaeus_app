@@ -45,7 +45,7 @@ Threads:  15
 스레드 15개 × 기본 스택 8MB만으로 이미 ~120MB — Idle 상태에서부터 방어선이 거의 다 차 있었던 것. 새 연결이 들어와 신규 스레드가 스택을 할당하려는 순간 VSS 한도에 걸려 조용히 실패 → TCP accept는 되지만 TLS 핸드셰이크를 처리할 스레드가 못 떠서 클라이언트 입장에서는 에러 없이 무한 대기(hang)로 관측됨.
 
 ### 최종 해결
-[main.cpp](src/main.cpp)의 `limitProcessMemory(128)` → `limitProcessMemory(512)`로 상향 (사용자가 직접 수정·재빌드). 임시방편이며, 근본적으로는 스레드 스택 크기 축소(`pthread_attr_setstacksize`)나 cgroups 기반 물리 메모리 제한 전환이 필요함 (TODO.md에 후속 과제로 등록됨).
+[main.cpp](../src/main.cpp)의 `limitProcessMemory(128)` → `limitProcessMemory(512)`로 상향 (사용자가 직접 수정·재빌드). 임시방편이며, 근본적으로는 스레드 스택 크기 축소(`pthread_attr_setstacksize`)나 cgroups 기반 물리 메모리 제한 전환이 필요함 (TODO.md에 후속 과제로 등록됨).
 
 ### Claude가 놓친 이유에 대한 분석
 - 문제를 처음부터 "외부(네트워크/OS/Docker) 계층"으로 프레이밍하고, 그 프레임 안에서만 가설을 순차 소거함. 자신이 직접 작성/제안했던 방어 코드(`RLIMIT_AS` 설정)를 의심 대상에서 배제하는 사각지대가 있었음.
