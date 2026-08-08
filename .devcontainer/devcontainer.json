@@ -1,0 +1,10 @@
+{
+    "name": "Bartimaeus Dev Container",
+    "build": {
+        "dockerfile": "../Dockerfile",
+        "context": "..",
+        "target": "builder"
+    },
+    "workspaceFolder": "/workspaces/Bartimaeus_app",
+    "runArgs": ["--name", "dev-containers"]
+}

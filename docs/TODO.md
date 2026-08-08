@@ -6,6 +6,12 @@
 
 ## 📌 보안 강화 작업 목록 (Checklist)
 
+- [ ] **로컬 `build_win`/MSVC 의존성 제거를 위한 Dev Container 도입 재검토 (Infra-DX)**
+    - [x] 경위(2026-08-08): "이제 안 쓰는 `build_win/` 폴더 지워도 되나"에서 출발 — `.clangd`가 로컬 IntelliSense를 위해 `build_win/compile_commands.json`을 참조 중이라 안전하게 삭제 불가함을 확인. 대안으로 Dev Containers(컨테이너 내부에서 VS Code Server + clangd 실행) 도입을 실습까지 진행(`.devcontainer/devcontainer.json` 작성, `Dockerfile`에 `clangd` 패키지 추가, `target: "builder"` 지정)
+    - [x] 시도 중 발견한 함정: `workspaceFolder`를 컨테이너 로컬 경로 없이 기본값대로 두면 Dev Containers가 자동으로 로컬 프로젝트 폴더 전체를 실시간 바인드 마운트(`/workspaces/Bartimaeus_app`)하게 되어, 컨테이너 안에서 만든 `build/`도 결국 로컬에 그대로 노출됨 — "빌드 산출물은 로컬에 안 보이게, 소스코드만 실시간 공유"를 원했다면 이 기본 마운트 방식으로는 불가능
+    - [x] 보류 결정(2026-08-08): 사용자가 "컨테이너 내부에서 상시 작업은 안 하겠다"고 결정 — `.clangd`는 다시 `CompilationDatabase: "build_win"`으로 원복, `build_win/` 삭제 안 함. `.devcontainer/devcontainer.json`과 `Dockerfile`의 `clangd` 설치는 당장 해는 없어 그대로 남겨둠(사용 안 하지만 걸리적거리지 않음)
+    - [ ] 나중에 다시 시도할 경우, 전체 폴더를 통째로 바인드 마운트하는 대신 `devcontainer.json`에 `mounts`로 `build/` 경로에만 별도의 **이름 붙은 볼륨**(예: `"source=bartimaeus-build-vol,target=/workspaces/Bartimaeus_app/build,type=volume"`)을 얹는 방식 검토 — `docker-compose.yml`의 `mariadb_data` 볼륨과 같은 원리로, 소스코드는 로컬과 실시간 공유하되 빌드 산출물만 컨테이너 내부에 격리 가능(Node.js 프로젝트에서 `node_modules`를 이렇게 분리하는 것과 동일한 패턴)
+
 - [ ] **컨테이너 재생성 시 에러 로그 유실 문제 (Infra-Logging)**
     - [x] 발견 경위(2026-08-07): 루트 파일 정리 과정에서 발견 — `docker-compose.yml`의 `app` 서비스에 로그 관련 볼륨 마운트가 없어, `helpers.hpp:104`가 쓰는 `error.log`가 컨테이너의 임시 파일시스템(`/app/error.log`)에만 존재함을 확인. `docker exec`로 실행 중인 컨테이너 내부를 직접 열어 로그 파일 부재를 실증 확인. `docker compose down`이나 `--build` 재생성 시 로그가 통째로 유실되는 구조
     - [ ] 조치 방향(2026-08-07 사용자 확정): 임시 방편(바인드 마운트 등)으로 지금 당장 땜질하지 않고, 착수 자체를 `ROADMAP.md` Phase 2(웹 서버 앞단 Reverse Proxy & WAF 구축) 시작 시점까지 통째로 보류하기로 결정 — 그때 방화벽/프록시 레이어의 로그까지 함께 고려해서, 처음부터 stdout/stderr 기반 로깅 + 중앙 로그 저장소(Phase 3 아나블레포: ELK/Loki 등) 방식으로 한 번에 설계할 계획. 그 전까지는 로그 유실이 알려진 한계로 존재하는 상태를 그대로 감수

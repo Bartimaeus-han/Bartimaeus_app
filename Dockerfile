@@ -2,7 +2,7 @@
 FROM debian:bookworm-slim AS builder
 
 # Install build tools and dev libraries for compile
-RUN apt-get update && apt-get install -y build-essential cmake ninja-build libssl-dev default-libmysqlclient-dev && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y build-essential cmake ninja-build libssl-dev default-libmysqlclient-dev clangd && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY . .
 
