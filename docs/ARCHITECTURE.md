@@ -25,8 +25,12 @@
   * [index.html](../public/index.html) / `admin.html` / `login.html`: 각각의 화면 템플릿.
   * [error.html](../public/error.html): 플레이스홀더 방식의 공용 에러 페이지 템플릿 (상세 정보 노출 차단).
   * `*.js` 및 `*.css` 정적 스크립트/스타일시트 파일 (보안 CSP 준수를 위해 인라인 코드 배제).
+* **`Ochlos/`**: 공격자 C2 / 레드팀 시뮬레이션 환경 (Offensive Security)
+  * [OCHLOS.md](../Ochlos/OCHLOS.md): 공격 시나리오 설계, 실행 명세, 실증 계측 결과 기록.
+  * [CMakeLists.txt](../Ochlos/CMakeLists.txt): Ochlos 내부의 C++ 공격 도구 타깃 빌드 설정.
+  * `DoS/`: 서비스 거부(DoS) 공격 시뮬레이션 C++ 소스 코드 (예: `tcp_syn_flooding.cpp`).
 * **`docker/init.sql`**, **`docker-compose.yml`**, **`Dockerfile`**: MariaDB 및 앱 컨테이너 기반 인프라 정의 (기존 SQLite3 `server.db` 파일은 완전히 제거되고 이 구조로 대체됨, 상세: [CONTEXT.md](CONTEXT.md)).
-* **`CMakeLists.txt`**: C++ 빌드 환경설정 정의.
+* **`CMakeLists.txt`**: 프로젝트 루트 C++ 빌드 환경설정 정의 (`add_subdirectory(Ochlos)` 포함).
 
 ---
 
