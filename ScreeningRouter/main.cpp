@@ -1,16 +1,20 @@
+#define _CRT_SECURE_NO_WARNINGS
+#include <cstdlib>
 #include <cstring>
 #include <iostream>
-#include <netdb.h>
 #include <string>
 #include <thread> // 다중 클라이언트 동시 중계
 
 // OS별
 #ifdef _WIN32
-#include <WS2tcpip.h>
+// clang-format off
 #include <WinSock2.h>
+#include <WS2tcpip.h>
+// clang-format on
 
 #else
 #include <arpa/inet.h>
+#include <netdb.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -136,11 +140,15 @@ int main() {
     }
 #endif
 
+    std::cout << std::unitbuf;
+
     std::cout << "[ScreeningRouter] L3/L4 Packet Logging Gateway started.\n";
 
     const int listen_port = 8080; // 이건 단순 스크리닝 라우터 작동 시에만 listen 하는 port
     // 여기는 이제 실제 스크리닝 라우터로써 뒷단에 있는 서버에 대한 주소
-    const char *backend_ip = "127.0.0.1";
+    const char *env_backend = std::getenv("BACKEND_HOST");
+    const char *backend_ip = env_backend ? env_backend : "127.0.0.1";
+
     const int backend_port = 9090;
 
     // 1. Create listening socket

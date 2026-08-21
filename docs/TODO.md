@@ -11,10 +11,12 @@
     - [x] 정정(2026-08-11): 이 항목은 THREAT-10(자동화 공격) 논의 중 진로/동기 이야기가 겹치면서 같이 떠오른 후보였음 — 착수 확정 전까지는 "다음엔 이거 한다"는 합의가 아니었다는 경위 기록
     - [x] 아이디어 경위(2026-08-10): 차단 로직을 `LoginLimiter`처럼 애플리케이션 내부에 두는 대신, `fail2ban`/nginx rate limiting처럼 별도 프로그램으로 분리하면 어떨까 하는 검토에서 출발
     - [x] (2026-08-21 실증 완료): `ScreeningRouter` L3/L4 실시간 로깅 및 `bartimaeus-app`(:9090)으로의 TCP 양방향 스트림 중계(`forward_stream`) 검증 완료 (HTTP 302 리다이렉트 응답 확인)
-    - [/] ① 스크리닝 라우터(L3/L4 stateless 필터링) 구현: 특정 IP/Port 기반의 Stateless 차단/허용 룰셋(Default-Deny 또는 Blacklist) 구현 및 동작 확인
-    - [ ] ② Ochlos로 stateless 필터 우회 공격(SYN Flooding / 비정상 세션 주입) 실증
-    - [ ] ③ 스테이트풀 인스펙션(Stateful Inspection)으로 해당 구멍 패치 (TCP 상태 테이블 관리)
-    - [ ] ④ 리버스 프록시(L7 애플리케이션 게이트웨이) 구현 (HTTP 파싱, 경로별 빈도 제한)
+    - [x] (2026-08-21 실증 완료): Docker 멀티 스테이지 빌드(`AS app`, `AS screening-router`) 및 `docker-compose.yml` 서비스(`bartimaeus-screening-router`:8080 ➔ `bartimaeus-app`:9090) 컨테이너 통합 완료. `std::unitbuf`를 통한 실시간 컨테이너 로깅 검증 완료
+    - [/] ① Ochlos C++ TCP SYN Flooding 공격 도구 구현 및 스크리닝 라우터 연동 실증
+    - [ ] ② 스크리닝 라우터(L3/L4 stateless 필터링) 구현: 특정 IP/Port 기반의 Stateless 차단/허용 룰셋(Default-Deny 또는 Blacklist) 구현 및 동작 확인
+    - [ ] ③ Ochlos로 stateless 필터 우회 공격(SYN Flooding / 비정상 세션 주입) 실증
+    - [ ] ④ 스테이트풀 인스펙션(Stateful Inspection)으로 해당 구멍 패치 (TCP 상태 테이블 관리)
+    - [ ] ⑤ 리버스 프록시(L7 애플리케이션 게이트웨이) 구현 (HTTP 파싱, 경로별 빈도 제한)
     - [x] 방어 로직 배치 기준 확정(2026-08-12): "요청 횟수만 보면 되는가(빈도 기반) vs 처리 결과까지 알아야 하는가(성공/실패 등 결과 기반)"로 판단 — 빈도 기반(회원가입 스팸, 게시글 스팸 등)은 ④ 리버스 프록시가 전체 기능에 공통으로 커버하고, 결과 기반(로그인 성공/실패처럼)은 앱 레벨 전용 로직만 남김(리버스 프록시가 응답 코드까지 파싱해 결과 기반 판단을 대신할 수는 있으나, 비즈니스 정책이 인프라 설정으로 새어나가는 트레이드오프가 있어 채택하지 않음). 이 기준으로 점검한 결과 `handleSignUp`([auth_controller.hpp:34](../src/controllers/auth_controller.hpp#L34))에는 현재 어떤 반복 요청 제한도 없음을 확인 — 이 갭은 별도 앱 코드 없이 ④ 완성 시 자동으로 해소될 예정
     - [x] (착수 시 참고) 이 프로젝트(Bartimaeus) 전체가 애초에 KISA "2026 주요정보통신기반시설 기술적 취약점 분석·평가 방법 상세가이드"를 공부하다가 시작됐다는 사실도 이때 확인됨 — 방화벽 전용 사실이 아니라 프로젝트 전체의 출발점이므로 참고용으로만 남김. 같은 가이드의 Chapter 04 "보안 장비"(353~386p)를 [Security_Equipment_Guide.md](Security_Equipment_Guide.md)로 추출해둠(계정/접근/패치/로그/기능관리 5분류, S-01~S-23 총 23개 공식 점검항목)
 
