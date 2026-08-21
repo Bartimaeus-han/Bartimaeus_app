@@ -1,8 +1,8 @@
 #include <cstring>
 #include <iostream>
+#include <netdb.h>
 #include <string>
 #include <thread> // 다중 클라이언트 동시 중계
-
 
 // OS별
 #ifdef _WIN32
@@ -68,6 +68,7 @@ void handle_client(SocketHandle client_sock, const char *backend_ip, int backend
     }
 
     // 검색할 호스트의 주소에 대한 조건을 설정한다.
+    // [struct addrinfo] : IPv4/6 dual stack, Thread-Safe, L3/L4를 하나의 function으로 동시 해석 가능.
     struct addrinfo hints, *res = nullptr;
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_INET;
@@ -86,24 +87,23 @@ void handle_client(SocketHandle client_sock, const char *backend_ip, int backend
         return;
     }
 
-    //     struct sockaddr_in backend_addr;
-    //     std::memset(&backend_addr, 0, sizeof(backend_addr));
-    //     backend_addr.sin_family = AF_INET;
-    //     backend_addr.sin_port = htons(backend_port);            // Host TO Network Short. 포트 번호가 0~65535 (short type)
-    //     inet_pton(AF_INET, backend_ip, &backend_addr.sin_addr); // sin -> Sockaddr_INternet
+    // ai -> AddrInfo struct
+    // addr : socket ADDRess
+    if (connect(backend_sock, res->ai_addr, res->ai_addrlen) != 0) {
+        std::cerr << "[-] Failed to connect to backend server (" << backend_ip << ":" << backend_port << ")\n";
+        freeaddrinfo(res);
+#ifdef _WIN32
+        closesocket(client_sock);
+        closesocket(backend_sock);
+#else
+        close(client_sock);
+        close(backend_sock);
+#endif
 
-    //     // backend로의 연결을 시행하고, 실패 확인
-    //     if (connect(backend_sock, reinterpret_cast<struct sockaddr *>(&backend_addr), sizeof(backend_addr)) != 0) {
-    //         std::cerr << "[-] Fialed to connect to backend server (" << backend_ip << ":" << backend_port << ")\n";
-    // #ifdef _WIN32
-    //         closesocket(client_sock);
-    //         closesocket(backend_sock);
-    // #else
-    //         close(client_sock);
-    //         close(backend_sock);
-    // #endif
-    //         return;
-    //     }
+        return;
+    }
+
+    freeaddrinfo(res);
 
     // 3. 이제 멀티 스레드로 양방향 동시 중계 시작하기
     std::thread client_to_server(forward_stream, client_sock, backend_sock);
@@ -200,7 +200,7 @@ int main() {
     // 5. 클라이언트의 연결 수락 및 L3/L4 logging loop
     while (true) {
         struct sockaddr_in client_addr;
-        int client_len = sizeof(client_addr);
+        socklen_t client_len = sizeof(client_addr);
         SocketHandle client_sock = accept(server_sock, reinterpret_cast<struct sockaddr *>(&client_addr), &client_len);
         if (client_sock == kInvalidSocket) {
             std::cerr << "[-] Accept failed\n";

@@ -8,5 +8,4 @@ build_linux
 *.lib
 *.pdb
 trash/
-Ochlos/
 docs/
