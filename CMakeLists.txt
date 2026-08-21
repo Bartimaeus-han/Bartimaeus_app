@@ -137,8 +137,5 @@ if(WIN32)
     )
 endif()
 
-# Register attacker simulation subproject
-add_subdirectory(Ochlos)
-
 # Register screening router gateway subproject
 add_subdirectory(ScreeningRouter)

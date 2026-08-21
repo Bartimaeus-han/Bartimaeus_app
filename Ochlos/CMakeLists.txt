@@ -1,7 +1,18 @@
 # Define build targets for attack simulation tools
+cmake_minimum_required(VERSION 3.15)
+project(Ochlos CXX)
 
-# Ochlos 하위의 모든 cpp 파일을 자동으로 탐색해버린다
+# editor 자동완성을 위하여 compile command 내보내기 활성화
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# MSVC 한글 주석 경고 방지
+if(MSVC)
+    add_compile_options(/utf-8)
+endif()
+
+# Ochlos 하위 모든 .cpp 파일 자동 탐색
 file(GLOB_RECURSE OCHLOS_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp"
 )
