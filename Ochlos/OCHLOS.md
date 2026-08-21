@@ -33,5 +33,13 @@
 
 ## 📌 공격 실증 이력 (Attack Simulation Log)
 
-*(공격 시나리오 실습 진행 시 위 템플릿에 따라 순차적으로 기록됩니다)*
+### [SCENARIO-01] L4 TCP Connection Starvation & Screening Router 실시간 패킷 탐지
+- **공격 목표 (Attack Objective)**: 백엔드 웹 서버의 TCP 수신 대기열 및 워커 스레드 자원 점유 (DoS)
+- **OSI 계층 (Target Layer)**: Layer 4 (Transport Layer)
+- **공격 메커니즘 (Mechanics)**: 3-Way Handshake를 완료한 후 `closesocket()`(RST/FIN)을 보내지 않고 소켓을 배열에 보관한 채 대기하여 서버의 연결 풀을 고갈시킴.
+- **실행 도구 (Tool)**: [Ochlos/DoS/tcp_syn_flooding.cpp](DoS/tcp_syn_flooding.cpp) (C++20 Winsock/POSIX)
+- **테스트베드 실측 결과 (Empirical Results)**:
+  - `ScreeningRouter.exe` (Port 8080) 기동 후 Ochlos 50개 커넥션 인입 시 실시간 L3 IP (`127.0.0.1`) 및 L4 출발지 Port(`5xxxx`) 감지 로그 50건 연속 출력 확인.
+- **블루팀(Bartimaeus) 방어 권고사항 (Blue Team Feedback)**:
+  - L3/L4 경계선에서 패킷 가시성을 확보하였으므로, 다음 단계로 검증된 트래픽을 내부 백엔드(`bartimaeus-app:9090`)로 포워딩(중계)하는 파이프라인 및 Stateless IP/Port 룰 필터링 구현 필요.
 

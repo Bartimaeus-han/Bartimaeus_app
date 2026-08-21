@@ -28,7 +28,7 @@ int main() {
 
     // 공격 대상 서버 정보 설정 (도커 내부에서 돌아가고 있는 컨테이너가 대상)
     const char *target_ip = "127.0.0.1";
-    const int target_port = 9090;
+    const int target_port = 8080;
 
     // socket에 대한 구조체를 설정한 후
     struct sockaddr_in target_addr;
