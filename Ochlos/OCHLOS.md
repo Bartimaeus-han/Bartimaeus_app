@@ -43,3 +43,15 @@
 - **블루팀(Bartimaeus) 방어 권고사항 (Blue Team Feedback)**:
   - L3/L4 경계선에서 패킷 가시성을 확보하였으므로, 다음 단계로 검증된 트래픽을 내부 백엔드(`bartimaeus-app:9090`)로 포워딩(중계)하는 파이프라인 및 Stateless IP/Port 룰 필터링 구현 필요.
 
+---
+
+## 📌 Ochlos 인프라 및 공격 도구 개선 TODO (Backlog)
+
+- [ ] **Ochlos 공격 도구의 Docker 컨테이너화 및 On-demand Runner 구성 (Infra-Attacker)**
+  - **배경 및 목적**: Windows/macOS 호스트 OS의 Raw Socket 보안 제약(`SOCK_RAW`, IP Spoofing 차단)을 극복하고, 크로스 플랫폼 일관성 및 L3/L4 저수준 패킷 조작 환경 확보.
+  - **개발 워크플로우**:
+    - **코드 편집 & Git 관리**: 로컬 호스트(VS Code)에서 평소처럼 편집 및 GitHub 커밋 유지.
+    - **실시간 바인드 마운트**: `docker-compose.yml`에 `ochlos` 서비스 정의 (`volumes: - ./Ochlos:/app/Ochlos`, `cap_add: - NET_RAW`).
+    - **On-demand 실행**: `docker compose run --rm ochlos ...` (또는 `crun` 연동)으로 필요할 때만 0.5초 만에 컨테이너를 띄워 컴파일 & 타격 후 자동 소멸(`--rm`).
+  - **기대 효과**: Linux 커널의 `CAP_NET_RAW` 권한을 활용해 순수 TCP SYN Flooding(Half-Open, 비정상 패킷 주입) 등 고도화된 DoS 공격을 제약 없이 실증 가능.
+
