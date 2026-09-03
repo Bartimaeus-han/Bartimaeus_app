@@ -29,21 +29,21 @@ using SocketHandle = int;
 const SocketHandle kInvalidSocket = -1;
 #endif
 
-// Screening Router는 client(external internet)과 server사이에서 작동하기 때문에 그에 따른 중계 파이프인 스트림
+// Reverse Proxy는 클라이언트(외부 인터넷)와 백엔드 서버 사이에서 트래픽을 양방향 중계하는 스트림 파이프라인 (Reverse Proxy stream pipeline relaying bidirectional traffic between client and backend)
 void forward_stream(SocketHandle src, SocketHandle dst) {
-    // x86/64 architecture에서 CPU의 MMU와 OS 커널이 메모리를 관리하는 기본 단위가 정확하게 4KB이다.
-    // Ethernet의 MTU는 1500byte, header제외 MSS는 약 1460byte -> 4096은 TCP packet 2~3개분량
-    // char buffer[4096]은 malloc/new를 사용하지 않고도 즉시 함수이 stack 영역으로 할당된다.
-    // 실무에서의 프록시 및 웹 서버들도 I/O buffer syze로 4 or 8 KB를 기본으로 채택 중이다.
+    // x86/64 architecture에서 CPU의 MMU와 OS 커널이 메모리를 관리하는 기본 단위가 정확하게 4KB이다. (Page size is 4KB in x86/64 architecture)
+    // Ethernet의 MTU는 1500byte, header제외 MSS는 약 1460byte -> 4096은 TCP packet 2~3개분량 (Ethernet MTU is 1500 bytes, MSS ~1460 bytes -> 4096 fits 2-3 TCP packets)
+    // char buffer[4096]은 malloc/new를 사용하지 않고도 즉시 함수의 stack 영역으로 할당된다. (char buffer[4096] is allocated immediately on stack without malloc/new)
+    // 실무에서의 프록시 및 웹 서버들도 I/O buffer size로 4 or 8 KB를 기본으로 채택 중이다. (Real-world proxies adopt 4KB or 8KB as default I/O buffer size)
     char buffer[4096];
 
     while (true) {
-        // external -> screening router
+        // external -> reverse proxy (외부 클라이언트 -> 리버스 프록시)
         int bytes_read = recv(src, buffer, sizeof(buffer), 0);
         if (bytes_read <= 0)
             break;
 
-        // screening router -> server
+        // reverse proxy -> backend server (리버스 프록시 -> 백엔드 서버)
         int bytes_sent = send(dst, buffer, bytes_read, 0);
         if (bytes_sent <= 0)
             break;
@@ -113,9 +113,8 @@ void handle_client(SocketHandle client_sock, const char *backend_ip, int backend
     std::thread client_to_server(forward_stream, client_sock, backend_sock);
     std::thread server_to_client(forward_stream, backend_sock, client_sock);
 
-    // 아래 안전 검사를 해주는게 Best Practice
-    // 바로 위에서 thread 생성 후 바로 확인하기 때문에 99.99% joinable() == true
-    // 예외가 있을 수 있지만, 현재 스크리닝 라우터의 목적은 중계 세션에 대한 로그 기록이므로 넘어간다
+    // 스레드 join 가능 여부 안전 검사 (Best practice safety check for joinable threads)
+    // 바로 위에서 thread 생성 후 즉시 대기하므로 안전하게 동기화 (Safely synchronize since threads were just created)
     if (client_to_server.joinable())
         client_to_server.join();
     if (server_to_client.joinable())
@@ -142,10 +141,10 @@ int main() {
 
     std::cout << std::unitbuf;
 
-    std::cout << "[ScreeningRouter] L3/L4 Packet Logging Gateway started.\n";
+    std::cout << "[ReverseProxy] L7 Reverse Proxy Gateway started.\n";
 
-    const int listen_port = 8080; // 이건 단순 스크리닝 라우터 작동 시에만 listen 하는 port
-    // 여기는 이제 실제 스크리닝 라우터로써 뒷단에 있는 서버에 대한 주소
+    const int listen_port = 8080; // 리버스 프록시 인입 리스닝 포트 (Reverse proxy incoming listen port)
+    // 백엔드 웹 애플리케이션 접속 주소 및 포트 (Backend web application host address and port)
     const char *env_backend = std::getenv("BACKEND_HOST");
     const char *backend_ip = env_backend ? env_backend : "127.0.0.1";
 
@@ -201,11 +200,11 @@ int main() {
         return 1;
     }
 
-    std::cout << "[+] Screening Router listening on 0.0.0.0:" << listen_port << "...\n";
+    std::cout << "[+] Reverse Proxy listening on 0.0.0.0:" << listen_port << "...\n";
 
-    std::cout << "[*] Monitoring incoming L3/L4 traffic in real-time...\n";
+    std::cout << "[*] Monitoring and proxying incoming client traffic in real-time...\n";
 
-    // 5. 클라이언트의 연결 수락 및 L3/L4 logging loop
+    // 5. 클라이언트 연결 수락 및 인입 트래픽 중계 루프 (Accept client connections and forward traffic loop)
     while (true) {
         struct sockaddr_in client_addr;
         socklen_t client_len = sizeof(client_addr);
@@ -215,14 +214,14 @@ int main() {
             break;
         }
 
-        // OSI 3,4 계층에서 데이터(IP, Port) 추출 및 문자열로의 변환
+        // 소켓 주소 구조체에서 클라이언트 IP/Port 추출 (Extract client IP and Port from socket address structure)
         char client_ip[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, &client_addr.sin_addr, client_ip, sizeof(client_ip));
         int client_port = ntohs(client_addr.sin_port);
 
-        std::cout << "[Screening Router] Source: " << client_ip << ":" << client_port << " -> Dest Port: " << listen_port << "\n";
+        std::cout << "[ReverseProxy] Source: " << client_ip << ":" << client_port << " -> Dest Port: " << listen_port << "\n";
 
-        // 개별 클라이언트 요청을 비동기 스레드로 넘겨서 중계를 처리한다.
+        // 개별 클라이언트 요청을 비동기 스레드로 넘겨서 중계를 처리한다 (Forward each client request to a worker thread)
         std::thread(handle_client, client_sock, backend_ip, backend_port).detach();
     }
 

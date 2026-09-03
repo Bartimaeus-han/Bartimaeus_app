@@ -25,15 +25,14 @@
   * [index.html](../public/index.html) / `admin.html` / `login.html`: 각각의 화면 템플릿.
   * [error.html](../public/error.html): 플레이스홀더 방식의 공용 에러 페이지 템플릿 (상세 정보 노출 차단).
   * `*.js` 및 `*.css` 정적 스크립트/스타일시트 파일 (보안 CSP 준수를 위해 인라인 코드 배제).
-* **`Ochlos/`**: 메인 서버 빌드 트리에서 완전히 독립 분리된 공격자 C2 / 레드팀 시뮬레이션 환경 (Offensive Security)
-  * [OCHLOS.md](../Ochlos/OCHLOS.md): 공격 시나리오 설계, 실행 명세, 실증 계측 결과 기록.
-  * [CMakeLists.txt](../Ochlos/CMakeLists.txt): 독립 CMake 프로젝트(`project(Ochlos)`) 빌드 설정 (`GLOB_RECURSE` 기반 공격 도구 타깃 자동 생성).
-  * `DoS/`: 서비스 거부(DoS) 공격 시뮬레이션 C++ 소스 코드 (예: `tcp_syn_flooding.cpp`).
-* **`ScreeningRouter/`**: L3/L4 스크리닝 라우터 & 패킷 로깅 게이트웨이 (Front-end Screening Router)
-  * [CMakeLists.txt](../ScreeningRouter/CMakeLists.txt): 스크리닝 라우터 바이너리 빌드 설정.
-  * [main.cpp](../ScreeningRouter/main.cpp): 외부 접속 L3 IP 및 L4 Port 실시간 로깅 및 `bartimaeus-app` 백엔드로의 트래픽 중계 진입점.
-* **`docker/init.sql`**, **`docker-compose.yml`**, **`Dockerfile`**: MariaDB, `bartimaeus-app`, `bartimaeus-screening-router` 컨테이너 기반 인프라 정의 (`bartimaeus_app_default` 브릿지 네트워크 기반 격리 인프라).
-* **`CMakeLists.txt`**: 프로젝트 루트 C++ 빌드 환경설정 정의 (`add_subdirectory(ScreeningRouter)` 포함).
+* **`ReverseProxy/`**: L7 리버스 프록시 및 트래픽 중계 게이트웨이 (Front-end Reverse Proxy Gateway)
+  * [CMakeLists.txt](../ReverseProxy/CMakeLists.txt): 리버스 프록시 바이너리 빌드 설정.
+  * [main.cpp](../ReverseProxy/main.cpp): 외부 접속 L3 IP 및 L4 Port 실시간 로깅 및 `bartimaeus-app` 백엔드로의 TCP 양방향 스트림 중계 진입점.
+* **`ScreeningRouter/` (구현 예정)**: L3/L4 패킷 단위 필터링 및 ICMP/SYN 검사 전용 스크리닝 라우터
+* **`docker/init.sql`**, **`docker-compose.yml`**, **`Dockerfile`**: MariaDB, `bartimaeus-app`, `bartimaeus-reverse-proxy` 컨테이너 기반 인프라 정의 (`bartimaeus_app_default` 브릿지 네트워크 기반 격리 인프라).
+* **`CMakeLists.txt`**: 프로젝트 루트 C++ 빌드 환경설정 정의 (`add_subdirectory(ReverseProxy)` 포함).
+* **외부 분리 프로젝트 (External Projects)**:
+  * **`Ochlos` (공격자 C2 / 레드팀 시뮬레이션 환경)**: Windows OS 커널의 Raw Socket/Raw Packet 생성 보안 제약을 회피하고 독립된 Linux/Docker 환경에서 공격 도구를 운용하기 위해 별도 프로젝트/저장소로 분리 이관됨 (`OCHLOS.md`, DoS/스팸 실증 도구 관리).
 
 ---
 

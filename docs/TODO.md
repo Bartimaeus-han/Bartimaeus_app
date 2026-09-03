@@ -12,7 +12,8 @@
     - [x] 아이디어 경위(2026-08-10): 차단 로직을 `LoginLimiter`처럼 애플리케이션 내부에 두는 대신, `fail2ban`/nginx rate limiting처럼 별도 프로그램으로 분리하면 어떨까 하는 검토에서 출발
     - [x] (2026-08-21 실증 완료): `ScreeningRouter` L3/L4 실시간 로깅 및 `bartimaeus-app`(:9090)으로의 TCP 양방향 스트림 중계(`forward_stream`) 검증 완료 (HTTP 302 리다이렉트 응답 확인)
     - [x] (2026-08-21 실증 완료): Docker 멀티 스테이지 빌드(`AS app`, `AS screening-router`) 및 `docker-compose.yml` 서비스(`bartimaeus-screening-router`:8080 ➔ `bartimaeus-app`:9090) 컨테이너 통합 완료. `std::unitbuf`를 통한 실시간 컨테이너 로깅 검증 완료
-    - [/] ① Ochlos C++ TCP SYN Flooding 공격 도구 구현 및 스크리닝 라우터 연동 실증
+    - [x] (2026-09-03 리팩터링 완료): 기존 TCP 스트림 중계 컴포넌트가 세션을 종단하는 프록시임을 식별하고, 본래 역할에 맞추어 `ReverseProxy`(`AS reverse-proxy`, `bartimaeus-reverse-proxy`:8080)로 승격 및 명칭 변경 완료. 향후 1차 방어선이 될 순수 L3/L4 `ScreeningRouter`는 앞단에 독립 분리 구현 예정
+    - [/] ① Ochlos C++ TCP SYN Flooding 및 ICMP 공격 실증을 위한 진정한 L3/L4 스크리닝 라우터 설계 및 구현
     - [ ] ② 스크리닝 라우터(L3/L4 stateless 필터링) 구현: 특정 IP/Port 기반의 Stateless 차단/허용 룰셋(Default-Deny 또는 Blacklist) 구현 및 동작 확인
     - [ ] ③ Ochlos로 stateless 필터 우회 공격(SYN Flooding / 비정상 세션 주입) 실증
     - [ ] ④ 스테이트풀 인스펙션(Stateful Inspection)으로 해당 구멍 패치 (TCP 상태 테이블 관리)

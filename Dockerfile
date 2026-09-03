@@ -25,9 +25,9 @@ COPY --from=builder /app/certs ./certs
 EXPOSE 9090
 CMD ["./SecureWebServer"]
 
-# Screening Router Runtime Stage
-FROM debian:bookworm-slim AS screening-router
+# Reverse Proxy Runtime Stage
+FROM debian:bookworm-slim AS reverse-proxy
 WORKDIR /app
-COPY --from=builder /app/build_linux/ScreeningRouter/ScreeningRouter .
+COPY --from=builder /app/build_linux/ReverseProxy/ReverseProxy .
 EXPOSE 8080
-CMD [ "./ScreeningRouter" ]
+CMD [ "./ReverseProxy" ]

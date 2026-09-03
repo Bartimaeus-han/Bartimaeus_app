@@ -31,12 +31,12 @@ services:
       - "9090:9090"
     mem_limit: 2g
 
-  screening-router:
+  reverse-proxy:
     build:
       context: .
       dockerfile: Dockerfile
-      target: screening-router
-    container_name: bartimaeus-screening-router
+      target: reverse-proxy
+    container_name: bartimaeus-reverse-proxy
     restart: unless-stopped
     depends_on:
       - app

@@ -138,4 +138,4 @@ if(WIN32)
 endif()
 
 # Register screening router gateway subproject
-add_subdirectory(ScreeningRouter)
+add_subdirectory(ReverseProxy)
