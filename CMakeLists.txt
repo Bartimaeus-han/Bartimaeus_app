@@ -137,5 +137,8 @@ if(WIN32)
     )
 endif()
 
-# Register screening router gateway subproject
+# Register Reverse Proxy gateway subproject
 add_subdirectory(ReverseProxy)
+
+# Register Screening Router gateway subproject
+add_subdirectory(ScreeningRouter)

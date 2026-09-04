@@ -73,6 +73,7 @@
 | **`fbf37fc`** | `ScreeningRouter/main.cpp`, `Dockerfile`, `docker-compose.yml`, [TODO.md](TODO.md) | **Feat/Infra (New-Firewall Docker 통합)** | `ScreeningRouter` L3/L4 실시간 로깅 게이트웨이 구축 및 Docker 멀티 스테이지 통합(`bartimaeus-screening-router`:8080 ➔ `bartimaeus-app`:9090) 완료 (`std::unitbuf` 실시간 로깅 검증). |
 | **`4ddd2a0`** | `CMakeLists.txt`, `.gitignore`, `docs/ARCHITECTURE.md` | **Refactor (Build)** | `Ochlos`를 서버 메인 CMake 빌드 트리에서 완전히 독립 분리(`project(Ochlos)`). |
 | **`96310e2`** | `GEMINI.md`, `Ochlos/*` (삭제 및 외부 이관) | **Security/Infra (Ochlos 분리)** | Windows OS 커널의 Raw Socket/Raw Packet 보안 제약(SYN Packet 조작 불가)을 회피하고 Linux/Docker 전용 공격 도구로 실행하기 위해 Ochlos 디렉터리를 외부 독립 프로젝트로 분리 이관 완료. |
+| **`8577821`** | `ReverseProxy/*`, `Dockerfile`, `docker-compose.yml`, `CMakeLists.txt` | **Refactor (Proxy)** | 기존 TCP 스트림 중계 컴포넌트가 세션을 종단하는 프록시임을 식별하여 `ReverseProxy`로 승격 및 Docker 설정 갱신. 최전방에 독립 배치될 L3/L4 Stateless 스크리닝 라우터 구축 준비 완료. |
 
 ---
 
@@ -114,6 +115,10 @@
    * 현상: `docker compose up`으로 컨테이너(app, mariadb) 모두 정상 `Up` 상태였고 포트 매핑(9090)과 TCP 3-way handshake(`Test-NetConnection`)까지는 성공했으나, 실제 HTTPS 요청(`curl`)은 매번 응답 없이 타임아웃됨. 컨테이너 로그상 서버 기동 자체는 정상 출력됨.
    * 원인: TODO.md에 사전 기록되어 있던 `RLIMIT_AS`(128MB) VSS 소진 우려([TODO.md](TODO.md) 참고)가 실제 장애로 발현. Idle 상태에서 이미 128MB 한도의 97%가 스레드 스택 예약분으로 소진된 상태였기 때문에, 신규 연결을 처리할 스레드의 스택 할당이 조용히 실패 — TCP accept 자체는 OS 레벨에서 성공하지만 TLS 핸드셰이크를 처리할 스레드가 뜨지 못해 클라이언트 입장에서는 명확한 에러(Connection Refused 등) 없이 무한 대기(hang)로 관측됨.
    * 해결책(임시): [main.cpp](../src/main.cpp) `limitProcessMemory()` 호출 인자를 128MB에서 **512MB로 상향**하여 스레드 스택 오버헤드 여유분을 확보, 정상 연결 재개 확인. 근본적인 스레드 스택 크기 축소나 cgroups 기반 물리 메모리 제한 전환 등은 후속 과제로 [TODO.md](TODO.md)에 재기재됨.
+9. **비과학적·과장된 용어 사용 및 버퍼링 메커니즘 왜곡 (2026-09-04)**:
+   * 현상: `std::unitbuf`의 동작을 설명하면서 "버퍼를 거치지 않고 쓰는 즉시", "0.001초 딜레이도 없이 실시간" 같은 비과학적이고 과장된 엉터리 표현을 남발하여 학습자에게 혼선을 초래함.
+   * 원인: 유저 공간에서 커널 공간으로의 컨텍스트 스위칭, 시스템 콜 인터럽트, I/O 버스 전송 등 컴퓨터 아키텍처상 불가피한 지연(Latency)이 엄연히 존재함에도 마술 같은 수식어를 무비판적으로 사용함. 또한 `unitbuf`는 버퍼 자체가 제거되는 것이 아니라 각 `<<` 연산 완료 시점마다 유저 공간 `streambuf`를 비우며 커널 `write()` 시스템 콜을 강제 유발하는 구조임을 정밀하게 짚지 못함.
+   * 해결책: 컴퓨터 시스템 및 커널 메커니즘을 설명할 때 '즉시', '알아서', '0초 딜레이' 등의 추상적·과장된 수식어를 영구 금지하고, 정확한 시스템 콜(`write()`), 버퍼 객체(`streambuf`), 컨텍스트 스위칭 및 레이턴시 관점에서 엄밀한 전문 용어만을 사용하도록 `GEMINI.md` 및 `CONTEXT.md`에 명시하고 반성함.
 
 ### 3.2 현재 프로젝트 빌드 설정 값
 * **빌드 제너레이터**: `Ninja` (최종 타겟 실행 파일: `SecureWebServer.exe`)
