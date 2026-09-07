@@ -2,7 +2,7 @@
 FROM debian:bookworm-slim AS builder
 
 # Install build tools and dev libraries for compile
-RUN apt-get update && apt-get install -y build-essential cmake ninja-build libssl-dev default-libmysqlclient-dev clangd curl wget git && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y build-essential cmake ninja-build libssl-dev default-libmysqlclient-dev clangd curl wget git iproute2 lsof procps && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY . .
 
@@ -31,3 +31,9 @@ WORKDIR /app
 COPY --from=builder /app/build/ReverseProxy/ReverseProxy .
 EXPOSE 8080
 CMD [ "./ReverseProxy" ]
+
+# Screening Router Runtime Stage
+FROM debian:bookworm-slim AS screening-router
+WORKDIR /app
+COPY --from=builder /app/build/ScreeningRouter/ScreeningRouter .
+CMD [ "./ScreeningRouter" ]

@@ -9,5 +9,14 @@
     "runArgs": [
         "--cap-add=NET_RAW",
         "--cap-add=NET_ADMIN"
-    ]
+    ],
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "llvm-vs-code-extensions.vscode-clangd", // clangd (LLVM)
+                "n2ns.antigravity-panel", // Antigravity Panel (Datafrog LLC)
+                "ms-azuretools.vscode-docker" // Docker (Microsoft)
+            ]
+        }
+    }
 }

@@ -11,7 +11,7 @@
 * **데이터베이스**: MySQL (MySQL C API 직접 연동, Connection Pool 구현) — 기존 SQLite3(`server.db`)에서 마이그레이션 완료
 * **빌드 시스템**: CMake (macOS/Unix 및 Windows 크로스 플랫폼 지원 구조)
 * **동작 포트**: `9090` 포트 (`0.0.0.0:9090` 리스닝)
-* **동작 제어**: (2026-08-01부로 변경) 로컬 개발도 Docker 전용으로 전환, `docker compose up --build`로 빌드/실행 자동화. 기존 `run.ps1`/`run.sh` 네이티브 빌드 스크립트는 더 이상 사용하지 않음(파일 보관 여부는 별도 결정 사항, 상세: `TODO.md`)
+* **동작 제어**: (2026-08-01부로 변경) 로컬 개발도 Docker 전용으로 전환, `docker compose up --build`로 빌드/실행 자동화. (2026-09-07 추가) L3/L4 Raw Socket 제어를 위해 Dev Container(`Bartimaeus Dev Container`) 환경으로 개발 표준을 완전히 전환하였으며, 빌드 디렉터리를 `build`로 일원화하고 레거시 `build_win` 의존성을 완전히 제거함.
 
 ---
 
@@ -74,6 +74,7 @@
 | **`4ddd2a0`** | `CMakeLists.txt`, `.gitignore`, `docs/ARCHITECTURE.md` | **Refactor (Build)** | `Ochlos`를 서버 메인 CMake 빌드 트리에서 완전히 독립 분리(`project(Ochlos)`). |
 | **`96310e2`** | `GEMINI.md`, `Ochlos/*` (삭제 및 외부 이관) | **Security/Infra (Ochlos 분리)** | Windows OS 커널의 Raw Socket/Raw Packet 보안 제약(SYN Packet 조작 불가)을 회피하고 Linux/Docker 전용 공격 도구로 실행하기 위해 Ochlos 디렉터리를 외부 독립 프로젝트로 분리 이관 완료. |
 | **`8577821`** | `ReverseProxy/*`, `Dockerfile`, `docker-compose.yml`, `CMakeLists.txt` | **Refactor (Proxy)** | 기존 TCP 스트림 중계 컴포넌트가 세션을 종단하는 프록시임을 식별하여 `ReverseProxy`로 승격 및 Docker 설정 갱신. 최전방에 독립 배치될 L3/L4 Stateless 스크리닝 라우터 구축 준비 완료. |
+| **`Working`** | `ScreeningRouter/main.cpp`, `Dockerfile`, `docker-compose.yml`, [TODO.md](TODO.md), [ARCHITECTURE.md](ARCHITECTURE.md) | **Feat/Security (ScreeningRouter 1단계 연동)** | `AF_PACKET` 기반 L3/L4 Raw 소켓 엔진 구축 및 `while(true)` 루프 전환 완료. `Dockerfile`(`AS screening-router`) 및 `docker-compose.yml`(`network_mode: "service:reverse-proxy"`, `CAP_NET_RAW`/`CAP_NET_ADMIN`) 연동 완료. 현재 구조는 사이드카 스니퍼(IDS)에 해당함을 식별하고, 향후 `external_net`/`internal_dmz_net`으로 망을 구획하는 완전 격리형 이중 홈 게이트웨이(Dual-Homed Gateway)로의 진화 계획 수립 (2026-09-07) |
 
 ---
 

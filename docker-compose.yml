@@ -45,5 +45,19 @@ services:
     ports:
       - "8080:8080"
 
+  screening-router:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: screening-router
+    container_name: bartimaeus-screening-router
+    restart: unless-stopped
+    network_mode: "service:reverse-proxy"
+    cap_add:
+      - NET_ADMIN # Network administration privilege
+      - NET_RAW # Raw socket creation privilege
+    depends_on:
+      - reverse-proxy
+
 volumes:
   mariadb_data:
