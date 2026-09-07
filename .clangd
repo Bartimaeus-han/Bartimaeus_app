@@ -1,0 +1,5 @@
+CompileFlags:
+    CompilationDatabase: "build" # 컴파일 데이터베이스 경로 (Compile database path)
+    Add:
+        - -std=c++20
+

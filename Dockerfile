@@ -2,12 +2,12 @@
 FROM debian:bookworm-slim AS builder
 
 # Install build tools and dev libraries for compile
-RUN apt-get update && apt-get install -y build-essential cmake ninja-build libssl-dev default-libmysqlclient-dev clangd && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y build-essential cmake ninja-build libssl-dev default-libmysqlclient-dev clangd curl wget git && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY . .
 
 # Configure and compile for Linux
-RUN cmake -B build_linux -G Ninja -DCMAKE_BUILD_TYPE=Release && cmake --build build_linux --config Release
+RUN cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release && cmake --build build --config Release
 
 # Runtime Stage
 # SecureWebServer의 별칭을 app으로 정한다. Screening Router에서 지정하려고
@@ -18,7 +18,7 @@ RUN apt-get update && apt-get install -y libssl3 default-mysql-client && rm -rf 
 WORKDIR /app
 
 # Copy only the binary and static assets from builder
-COPY --from=builder /app/build_linux/SecureWebServer .
+COPY --from=builder /app/build/SecureWebServer .
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/certs ./certs
 
@@ -28,6 +28,6 @@ CMD ["./SecureWebServer"]
 # Reverse Proxy Runtime Stage
 FROM debian:bookworm-slim AS reverse-proxy
 WORKDIR /app
-COPY --from=builder /app/build_linux/ReverseProxy/ReverseProxy .
+COPY --from=builder /app/build/ReverseProxy/ReverseProxy .
 EXPOSE 8080
 CMD [ "./ReverseProxy" ]

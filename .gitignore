@@ -34,9 +34,6 @@ out/
 # Cmake auto-generated
 compile_commands.json
 
-# Local editor helper
-.clangd
-
 error.log
 chat_history_export.md
 .gitignore

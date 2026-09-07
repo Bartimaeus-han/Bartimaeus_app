@@ -6,5 +6,8 @@
         "target": "builder"
     },
     "workspaceFolder": "/workspaces/Bartimaeus_app",
-    "runArgs": ["--name", "dev-containers"]
+    "runArgs": [
+        "--cap-add=NET_RAW",
+        "--cap-add=NET_ADMIN"
+    ]
 }

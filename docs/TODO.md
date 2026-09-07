@@ -21,11 +21,11 @@
     - [x] 방어 로직 배치 기준 확정(2026-08-12): "요청 횟수만 보면 되는가(빈도 기반) vs 처리 결과까지 알아야 하는가(성공/실패 등 결과 기반)"로 판단 — 빈도 기반(회원가입 스팸, 게시글 스팸 등)은 ④ 리버스 프록시가 전체 기능에 공통으로 커버하고, 결과 기반(로그인 성공/실패처럼)은 앱 레벨 전용 로직만 남김(리버스 프록시가 응답 코드까지 파싱해 결과 기반 판단을 대신할 수는 있으나, 비즈니스 정책이 인프라 설정으로 새어나가는 트레이드오프가 있어 채택하지 않음). 이 기준으로 점검한 결과 `handleSignUp`([auth_controller.hpp:34](../src/controllers/auth_controller.hpp#L34))에는 현재 어떤 반복 요청 제한도 없음을 확인 — 이 갭은 별도 앱 코드 없이 ④ 완성 시 자동으로 해소될 예정
     - [x] (착수 시 참고) 이 프로젝트(Bartimaeus) 전체가 애초에 KISA "2026 주요정보통신기반시설 기술적 취약점 분석·평가 방법 상세가이드"를 공부하다가 시작됐다는 사실도 이때 확인됨 — 방화벽 전용 사실이 아니라 프로젝트 전체의 출발점이므로 참고용으로만 남김. 같은 가이드의 Chapter 04 "보안 장비"(353~386p)를 [Security_Equipment_Guide.md](Security_Equipment_Guide.md)로 추출해둠(계정/접근/패치/로그/기능관리 5분류, S-01~S-23 총 23개 공식 점검항목)
 
-- [ ] **로컬 `build_win`/MSVC 의존성 제거를 위한 Dev Container 도입 재검토 (Infra-DX)**
+- [x] **로컬 `build_win`/MSVC 의존성 제거를 위한 Dev Container 도입 및 빌드 디렉터리 단일화 (Infra-DX 완료)**
+    - [x] (2026-09-07 완료): Raw Socket 실습을 위해 Dev Container(`Bartimaeus Dev Container`) 환경으로 완전 진입. 빌드 디렉터리를 표준 `build`로 단일화(`Dockerfile`, `.vscode/settings.json`, `build/compile_commands.json`). `.clangd`의 Windows/MSVC 종속성을 걷어내고 리눅스 컴파일 데이터베이스를 연결(0 errors 검증 완료)한 뒤 `.gitignore`에서 제외하여 저장소 베이스라인에 포함시킴. 이로써 레거시 `build_win` 폴더 및 Windows MSVC 의존성을 완전히 탈피함
     - [x] 경위(2026-08-08): "이제 안 쓰는 `build_win/` 폴더 지워도 되나"에서 출발 — `.clangd`가 로컬 IntelliSense를 위해 `build_win/compile_commands.json`을 참조 중이라 안전하게 삭제 불가함을 확인. 대안으로 Dev Containers(컨테이너 내부에서 VS Code Server + clangd 실행) 도입을 실습까지 진행(`.devcontainer/devcontainer.json` 작성, `Dockerfile`에 `clangd` 패키지 추가, `target: "builder"` 지정)
     - [x] 시도 중 발견한 함정: `workspaceFolder`를 컨테이너 로컬 경로 없이 기본값대로 두면 Dev Containers가 자동으로 로컬 프로젝트 폴더 전체를 실시간 바인드 마운트(`/workspaces/Bartimaeus_app`)하게 되어, 컨테이너 안에서 만든 `build/`도 결국 로컬에 그대로 노출됨 — "빌드 산출물은 로컬에 안 보이게, 소스코드만 실시간 공유"를 원했다면 이 기본 마운트 방식으로는 불가능
     - [x] 보류 결정(2026-08-08): 사용자가 "컨테이너 내부에서 상시 작업은 안 하겠다"고 결정 — `.clangd`는 다시 `CompilationDatabase: "build_win"`으로 원복, `build_win/` 삭제 안 함. `.devcontainer/devcontainer.json`과 `Dockerfile`의 `clangd` 설치는 당장 해는 없어 그대로 남겨둠(사용 안 하지만 걸리적거리지 않음)
-    - [ ] 나중에 다시 시도할 경우, 전체 폴더를 통째로 바인드 마운트하는 대신 `devcontainer.json`에 `mounts`로 `build/` 경로에만 별도의 **이름 붙은 볼륨**(예: `"source=bartimaeus-build-vol,target=/workspaces/Bartimaeus_app/build,type=volume"`)을 얹는 방식 검토 — `docker-compose.yml`의 `mariadb_data` 볼륨과 같은 원리로, 소스코드는 로컬과 실시간 공유하되 빌드 산출물만 컨테이너 내부에 격리 가능(Node.js 프로젝트에서 `node_modules`를 이렇게 분리하는 것과 동일한 패턴)
 
 - [ ] **컨테이너 재생성 시 에러 로그 유실 문제 (Infra-Logging)**
     - [x] 발견 경위(2026-08-07): 루트 파일 정리 과정에서 발견 — `docker-compose.yml`의 `app` 서비스에 로그 관련 볼륨 마운트가 없어, `helpers.hpp:104`가 쓰는 `error.log`가 컨테이너의 임시 파일시스템(`/app/error.log`)에만 존재함을 확인. `docker exec`로 실행 중인 컨테이너 내부를 직접 열어 로그 파일 부재를 실증 확인. `docker compose down`이나 `--build` 재생성 시 로그가 통째로 유실되는 구조
