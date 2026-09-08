@@ -15,7 +15,8 @@
     - [x] (2026-09-03 리팩터링 완료): 기존 TCP 스트림 중계 컴포넌트가 세션을 종단하는 프록시임을 식별하고, 본래 역할에 맞추어 `ReverseProxy`(`AS reverse-proxy`, `bartimaeus-reverse-proxy`:8080)로 승격 및 명칭 변경 완료. 향후 1차 방어선이 될 순수 L3/L4 `ScreeningRouter`는 앞단에 독립 분리 구현 예정
     - [/] ① Ochlos C++ TCP SYN Flooding 및 ICMP 공격 실증을 위한 진정한 L3/L4 스크리닝 라우터 설계 및 구현
         - [x] (2026-09-08 망 구획 완료): `external_net`, `dmz_net`, `internal_net` 3계층 망 분리 및 `ScreeningRouter` 이중 홈(Dual-Homed) 게이트웨이 배치 완료. `ReverseProxy` 및 `app` 외부 포트 매핑을 제거하여 방화벽 우회 경로 차단 완료
-        - [/] 스크리닝 라우터 인라인 패킷 포워딩 및 검사 엔진 구축: L3/L4 Raw 패킷 중계 및 Ochlos 공격 실증 준비
+        - [x] (2026-09-08 중계 중간 구현 - 커밋 `7936ebf`): `AF_PACKET` + `SOCK_DGRAM` 기반 `eth0` ↔ `eth1` 양방향 패킷 포워딩 및 `PACKET_OUTGOING` 송신 루프 차단 가드 중간 구현 완료
+        - [/] 듀얼 소켓(`ext_sock`, `dmz_sock`) 및 `poll()` 기반 양방향 포워딩 아키텍처 재작성: 단일 소켓의 땜질 옵션(`PACKET_IGNORE_OUTGOING`)과 단일 인터페이스 바인딩 시의 역방향 세션 단절 한계를 극복하기 위해, 기존 코드를 정리하고 백지에서부터 `eth0` 바인딩 수신 소켓과 `eth1` 바인딩 수신 소켓을 분리한 뒤 I/O 멀티플렉싱(`poll`) 기반의 무결점 대칭형 포워딩 파이프라인 구축 진행 중 (공격 탐지 로직 추가 전 정상 패킷 왕복 검증 목표)
     - [ ] ② 스크리닝 라우터(L3/L4 stateless 필터링) 구현: 특정 IP/Port 기반의 Stateless 차단/허용 룰셋(Default-Deny 또는 Blacklist) 구현 및 동작 확인
     - [ ] ③ Ochlos로 stateless 필터 우회 공격(SYN Flooding / 비정상 세션 주입) 실증
     - [ ] ④ 스테이트풀 인스펙션(Stateful Inspection)으로 해당 구멍 패치 (TCP 상태 테이블 관리)

@@ -1,93 +1,84 @@
-#include <arpa/inet.h> // ip/port 변환용 inet_ntop(), ntohs()
-#include <cstdlib>
-#include <cstring>
 #include <iostream>
-#include <linux/if_packet.h> // Low-level packet address structure
-#include <net/ethernet.h>    // ETH_P_IP constant
+#include <linux/if_packet.h> // sockaddr_ll struct
+#include <net/ethernet.h>    // ETH_P_IP protocol constant
 #include <net/if.h>          // if_nametoindex()
-#include <netinet/in.h>      // for IPPROTO_ICMP
-#include <netinet/ip.h>      // L3 IPv4 header struct
-#include <netinet/ip_icmp.h> // ICMP header struct
-#include <netinet/tcp.h>     // L4 TCP header struct
-#include <sys/socket.h>      // for socket(), AF_INET, SOCK_RAW
-#include <unistd.h>          // for close() function
+#include <netinet/in.h>      // htons()
+#include <poll.h>            // poll(), struct pollfd
+#include <sys/socket.h>      // socket(), AF_PACKET, SOCK_DGRAM
+#include <unistd.h>          // close() system call
 
 int main() {
-    std::cout << std::unitbuf;
-
-    std::cout << "[ScreeningRouter] Initializing L3/L4 Raw Socket..." << std::endl;
-
-    int raw_sock = socket(AF_PACKET, SOCK_DGRAM, htons(ETH_P_IP));
-    if (raw_sock < 0) {
-        std::cerr << "[!] Failed to create raw socket (Root privilege required)" << std::endl;
-        return 1;
+    // 1. eth0 전용 Raw socket 생성
+    int ext_sock = socket(AF_PACKET, SOCK_DGRAM, htons(ETH_P_IP));
+    if (ext_sock < 0) {
+        // error msg
     }
-    std::cout << "[+] Raw socket create successfully (fd: " << raw_sock << ")" << std::endl;
-
-    // change network interface name to index
-    unsigned int ext_ifindex = if_nametoindex("eth0");
-    unsigned int dmz_ifindex = if_nametoindex("eth1");
-    if (ext_ifindex == 0 || dmz_ifindex == 0) {
+    // 2. eht1 전용 Raw socket 생성
+    int dmz_sock = socket(AF_PACKET, SOCK_DGRAM, htons(ETH_P_IP));
+    if (dmz_sock < 0) {
         // error msg
     }
 
-    std::cout << "[+] Interfaces bound - eth0(External): " << ext_ifindex << ", eth1(DMZ): " << dmz_ifindex << std::endl;
+    std::cout << "[+] Sockets created successfully (ext_sock: " << ext_sock << ", dmz_sock: " << dmz_sock << ")" << std::endl;
 
-    char buffer[2048];
-    std::cout << "[*] Listening for raw packet..." << std::endl;
-    while (true) {
-        struct sockaddr_ll sll;
-        socklen_t sll_len = sizeof(sll);
-        ssize_t data_size = recvfrom(raw_sock, buffer, sizeof(buffer), 0, reinterpret_cast<struct sockaddr *>(&sll), &sll_len);
+    // 3. Network Interface index 조회
+    unsigned int ext_ifindex = if_nametoindex("eth0");
+    unsigned int dmz_ifindex = if_nametoindex("eth1");
 
-        if (data_size < 0) {
-            std::cerr << "[!] Failed to receive packet" << std::endl;
-
-            continue;
-        }
-        std::cout << "[+] Packet captured! (Size: " << data_size << " bytes)" << std::endl;
-
-        if (sll.sll_pkttype == PACKET_OUTGOING)
-            continue;
-
-        // 1. Parsing L3 IPv4 Header
-        struct iphdr *ip_header = reinterpret_cast<struct iphdr *>(buffer);
-        char src_ip[INET_ADDRSTRLEN];
-        char dst_ip[INET_ADDRSTRLEN];
-        inet_ntop(AF_INET, &(ip_header->saddr), src_ip, sizeof(src_ip));
-        inet_ntop(AF_INET, &(ip_header->daddr), dst_ip, sizeof(dst_ip));
-
-        // 3. Parse L4 header
-        // IHL offset 만큼 skip
-        // ipv4 헤더는 20~60byte까지 가변적인 길이를 가진다. 이를 ihl로 저장하여 표현
-        int ip_header_len = ip_header->ihl * 4;
-
-        // if TCP
-        if (ip_header->protocol == IPPROTO_TCP) {
-            // ip header 이후에 tcp header가 나오는 구조 이므로
-            struct tcphdr *tcp_header = reinterpret_cast<struct tcphdr *>(buffer + ip_header_len);
-
-            std::cout << "[TCP] " << src_ip << ":" << ntohs(tcp_header->source)
-                      << " -> " << dst_ip << ":" << ntohs(tcp_header->dest) << std::endl;
-        } else if (ip_header->protocol == IPPROTO_ICMP) {
-            struct icmphdr *icmp_header = reinterpret_cast<struct icmphdr *>(buffer + ip_header_len);
-
-            std::cout << "[ICMP] " << src_ip << " -> " << dst_ip
-                      << " (Type: " << static_cast<int>(icmp_header->type) << ")" << std::endl;
-        } else {
-            std::cout << "[Other IP Protocol: " << static_cast<int>(ip_header->protocol) << "] " << src_ip << " -> " << dst_ip << std::endl;
-        }
-
-        unsigned int target_ifindex = (sll.sll_ifindex == ext_ifindex) ? dmz_ifindex : ext_ifindex;
-        struct sockaddr_ll out_sll{};
-        out_sll.sll_family = AF_PACKET;
-        out_sll.sll_protocol = htons(ETH_P_IP);
-        out_sll.sll_ifindex = target_ifindex;
-
-        sendto(raw_sock, buffer, data_size, 0, reinterpret_cast<struct sockaddr *>(&out_sll), sizeof(out_sll));
+    if (ext_ifindex == 0 || dmz_ifindex == 0) {
+        // error msg & close() & return
     }
 
-    close(raw_sock);
+    std::cout << "[+] Interface identified - eth0(External): " << ext_ifindex << ", eth1(DMZ): " << dmz_ifindex << std::endl;
+
+    // 4. 각 socket을 해당하는 network interface에 bind
+    struct sockaddr_ll ext_sll{};
+    ext_sll.sll_family = AF_PACKET;
+    ext_sll.sll_protocol = htons(ETH_P_IP);
+    ext_sll.sll_ifindex = ext_ifindex;
+    if (bind(ext_sock, reinterpret_cast<struct sockaddr *>(&ext_sll), sizeof(ext_sll)) < 0) {
+        // error
+    }
+
+    struct sockaddr_ll dmz_sll{};
+    dmz_sll.sll_family = AF_PACKET;
+    dmz_sll.sll_protocol = htons(ETH_P_IP);
+    dmz_sll.sll_ifindex = dmz_ifindex;
+    if (bind(dmz_sock, reinterpret_cast<struct sockaddr *>(&dmz_sll), sizeof(dmz_sll)) < 0) {
+        // error
+    }
+
+    std::cout << "[+] Sockets successfully bound to respective interfaces" << std::endl;
+
+    // 5. I/O multiplexing을 위한 pollfd 구조체 배열 구성
+    struct pollfd fds[2];
+    fds[0].fd = ext_sock;
+    fds[0].events = POLLIN; // eth0 수신 대기
+
+    fds[1].fd = dmz_sock;
+    fds[1].events = POLLIN; // eth1 수신 대기
+
+    std::cout << "[*] Screening Router packet forwarding loop started..." << std::endl;
+
+    while (true) {
+        // kernel에 수신 event 대기 요청
+        int ret = poll(fds, 2, -1);
+        if (ret < 0) {
+            std::cerr << "[!] poll() error occurred" << std::endl;
+            break;
+        }
+
+        if (fds[0].revents & POLLIN) {
+            // forwarding logic
+        }
+
+        if (fds[1].revents & POLLIN) {
+            // forwarding logic
+        }
+    }
+
+    close(ext_sock);
+    close(dmz_sock);
 
     return 0;
 }

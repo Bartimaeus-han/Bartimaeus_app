@@ -28,7 +28,7 @@
 * **`ReverseProxy/`**: L7 리버스 프록시 및 트래픽 중계 게이트웨이 (Front-end Reverse Proxy Gateway)
   * [CMakeLists.txt](../ReverseProxy/CMakeLists.txt): 리버스 프록시 바이너리 빌드 설정.
   * [main.cpp](../ReverseProxy/main.cpp): 외부 접속 L3 IP 및 L4 Port 실시간 로깅 및 `bartimaeus-app` 백엔드로의 TCP 양방향 스트림 중계 진입점.
-* **`ScreeningRouter/`**: L3/L4 패킷 단위 필터링 및 ICMP/SYN 검사 전용 스크리닝 라우터 (1단계: `ReverseProxy`와 NetNS를 공유하는 사이드카 스니퍼로 모니터링 연동, 2단계: `external_net`/`internal_dmz_net`으로 망을 구획하는 Dual-Homed 인라인 게이트웨이로 확장 예정).
+* **`ScreeningRouter/`**: L3/L4 패킷 단위 필터링 및 ICMP/SYN 검사 전용 스크리닝 라우터 (3계층 망 분리 기반 Dual-Homed 게이트웨이로서, `ext_sock`(`eth0`)과 `dmz_sock`(`eth1`) 듀얼 소켓 분리 및 `poll()` I/O 멀티플렉싱을 통해 루프백 없는 대칭형 양방향 포워딩 및 외부 인바운드 ICMP/SYN 실시간 공격 탐지 파이프라인 담당).
 * **`docker/init.sql`**, **`docker-compose.yml`**, **`Dockerfile`**: MariaDB, `bartimaeus-app`, `bartimaeus-reverse-proxy`, `bartimaeus-screening-router` 컨테이너 기반 인프라 정의 (`CAP_NET_RAW`/`CAP_NET_ADMIN` 권한 부여 및 멀티 스테이지 빌드).
 * **`CMakeLists.txt`**: 프로젝트 루트 C++ 빌드 환경설정 정의 (`add_subdirectory(ReverseProxy)` 포함).
 * **외부 분리 프로젝트 (External Projects)**:
