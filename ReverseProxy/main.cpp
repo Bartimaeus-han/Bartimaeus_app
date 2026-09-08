@@ -219,7 +219,7 @@ int main() {
         inet_ntop(AF_INET, &client_addr.sin_addr, client_ip, sizeof(client_ip));
         int client_port = ntohs(client_addr.sin_port);
 
-        std::cout << "[ReverseProxy] Source: " << client_ip << ":" << client_port << " -> Dest Port: " << listen_port << "\n";
+        // std::cout << "[ReverseProxy] Source: " << client_ip << ":" << client_port << " -> Dest Port: " << listen_port << "\n";
 
         // 개별 클라이언트 요청을 비동기 스레드로 넘겨서 중계를 처리한다 (Forward each client request to a worker thread)
         std::thread(handle_client, client_sock, backend_ip, backend_port).detach();

@@ -9,3 +9,6 @@ build_linux
 *.pdb
 trash/
 docs/
+
+build
+build*

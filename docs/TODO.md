@@ -14,8 +14,8 @@
     - [x] (2026-08-21 실증 완료): Docker 멀티 스테이지 빌드(`AS app`, `AS screening-router`) 및 `docker-compose.yml` 서비스(`bartimaeus-screening-router`:8080 ➔ `bartimaeus-app`:9090) 컨테이너 통합 완료. `std::unitbuf`를 통한 실시간 컨테이너 로깅 검증 완료
     - [x] (2026-09-03 리팩터링 완료): 기존 TCP 스트림 중계 컴포넌트가 세션을 종단하는 프록시임을 식별하고, 본래 역할에 맞추어 `ReverseProxy`(`AS reverse-proxy`, `bartimaeus-reverse-proxy`:8080)로 승격 및 명칭 변경 완료. 향후 1차 방어선이 될 순수 L3/L4 `ScreeningRouter`는 앞단에 독립 분리 구현 예정
     - [/] ① Ochlos C++ TCP SYN Flooding 및 ICMP 공격 실증을 위한 진정한 L3/L4 스크리닝 라우터 설계 및 구현
-        - [x] (2026-09-07 실증 및 1단계 배포): `AF_PACKET` + `SOCK_DGRAM` 기반의 L3 IPv4 (`struct iphdr`) 및 L4 TCP/ICMP (`struct tcphdr`, `struct icmphdr`) 분기 디코딩 구현 및 `while (true)` 지속 수신 루프 전환 완료. `Dockerfile`(`AS screening-router`) 및 `docker-compose.yml` 등록 완료
-        - [ ] (아키텍처 진화 계획 확정 - 2026-09-07): 현재의 `network_mode: "service:reverse-proxy"` 배치는 인라인 방화벽이라기보다 사이드카 패킷 스니퍼(IDS) 구조임을 식별. 1단계로 현재 사이드카 구조에서 실시간 패킷 모니터링 검증을 마친 후, 2단계에서 `external_net`과 `internal_dmz_net`으로 망을 구획하여 리버스 프록시를 완전히 은닉하고 스크리닝 라우터를 인라인 관문으로 두는 '이중 홈 게이트웨이(Dual-Homed Gateway)' 아키텍처로 고도화하기로 결정
+        - [x] (2026-09-08 망 구획 완료): `external_net`, `dmz_net`, `internal_net` 3계층 망 분리 및 `ScreeningRouter` 이중 홈(Dual-Homed) 게이트웨이 배치 완료. `ReverseProxy` 및 `app` 외부 포트 매핑을 제거하여 방화벽 우회 경로 차단 완료
+        - [/] 스크리닝 라우터 인라인 패킷 포워딩 및 검사 엔진 구축: L3/L4 Raw 패킷 중계 및 Ochlos 공격 실증 준비
     - [ ] ② 스크리닝 라우터(L3/L4 stateless 필터링) 구현: 특정 IP/Port 기반의 Stateless 차단/허용 룰셋(Default-Deny 또는 Blacklist) 구현 및 동작 확인
     - [ ] ③ Ochlos로 stateless 필터 우회 공격(SYN Flooding / 비정상 세션 주입) 실증
     - [ ] ④ 스테이트풀 인스펙션(Stateful Inspection)으로 해당 구멍 패치 (TCP 상태 테이블 관리)
