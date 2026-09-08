@@ -2,7 +2,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <linux/if_packet.h> // Low-level packet address structure
 #include <net/ethernet.h>    // ETH_P_IP constant
+#include <net/if.h>          // if_nametoindex()
 #include <netinet/in.h>      // for IPPROTO_ICMP
 #include <netinet/ip.h>      // L3 IPv4 header struct
 #include <netinet/ip_icmp.h> // ICMP header struct
@@ -22,11 +24,21 @@ int main() {
     }
     std::cout << "[+] Raw socket create successfully (fd: " << raw_sock << ")" << std::endl;
 
+    // change network interface name to index
+    unsigned int ext_ifindex = if_nametoindex("eth0");
+    unsigned int dmz_ifindex = if_nametoindex("eth1");
+    if (ext_ifindex == 0 || dmz_ifindex == 0) {
+        // error msg
+    }
+
+    std::cout << "[+] Interfaces bound - eth0(External): " << ext_ifindex << ", eth1(DMZ): " << dmz_ifindex << std::endl;
+
     char buffer[2048];
     std::cout << "[*] Listening for raw packet..." << std::endl;
     while (true) {
-        // UDP나 raw socket 처럼 비연결형 상태에서 날라오는 datagram을 수신할 때 사용하는 system call
-        ssize_t data_size = recvfrom(raw_sock, buffer, sizeof(buffer), 0, nullptr, nullptr);
+        struct sockaddr_ll sll;
+        socklen_t sll_len = sizeof(sll);
+        ssize_t data_size = recvfrom(raw_sock, buffer, sizeof(buffer), 0, reinterpret_cast<struct sockaddr *>(&sll), &sll_len);
 
         if (data_size < 0) {
             std::cerr << "[!] Failed to receive packet" << std::endl;
@@ -34,6 +46,9 @@ int main() {
             continue;
         }
         std::cout << "[+] Packet captured! (Size: " << data_size << " bytes)" << std::endl;
+
+        if (sll.sll_pkttype == PACKET_OUTGOING)
+            continue;
 
         // 1. Parsing L3 IPv4 Header
         struct iphdr *ip_header = reinterpret_cast<struct iphdr *>(buffer);
@@ -62,6 +77,14 @@ int main() {
         } else {
             std::cout << "[Other IP Protocol: " << static_cast<int>(ip_header->protocol) << "] " << src_ip << " -> " << dst_ip << std::endl;
         }
+
+        unsigned int target_ifindex = (sll.sll_ifindex == ext_ifindex) ? dmz_ifindex : ext_ifindex;
+        struct sockaddr_ll out_sll{};
+        out_sll.sll_family = AF_PACKET;
+        out_sll.sll_protocol = htons(ETH_P_IP);
+        out_sll.sll_ifindex = target_ifindex;
+
+        sendto(raw_sock, buffer, data_size, 0, reinterpret_cast<struct sockaddr *>(&out_sll), sizeof(out_sll));
     }
 
     close(raw_sock);
