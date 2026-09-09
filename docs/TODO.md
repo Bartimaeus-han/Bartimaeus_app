@@ -16,7 +16,7 @@
     - [/] ① Ochlos C++ TCP SYN Flooding 및 ICMP 공격 실증을 위한 진정한 L3/L4 스크리닝 라우터 설계 및 구현
         - [x] (2026-09-08 망 구획 완료): `external_net`, `dmz_net`, `internal_net` 3계층 망 분리 및 `ScreeningRouter` 이중 홈(Dual-Homed) 게이트웨이 배치 완료. `ReverseProxy` 및 `app` 외부 포트 매핑을 제거하여 방화벽 우회 경로 차단 완료
         - [x] (2026-09-08 중계 중간 구현 - 커밋 `7936ebf`): `AF_PACKET` + `SOCK_DGRAM` 기반 `eth0` ↔ `eth1` 양방향 패킷 포워딩 및 `PACKET_OUTGOING` 송신 루프 차단 가드 중간 구현 완료
-        - [/] 듀얼 소켓(`ext_sock`, `dmz_sock`) 및 `poll()` 기반 양방향 포워딩 아키텍처 재작성: 단일 소켓의 땜질 옵션(`PACKET_IGNORE_OUTGOING`)과 단일 인터페이스 바인딩 시의 역방향 세션 단절 한계를 극복하기 위해, 기존 코드를 정리하고 백지에서부터 `eth0` 바인딩 수신 소켓과 `eth1` 바인딩 수신 소켓을 분리한 뒤 I/O 멀티플렉싱(`poll`) 기반의 무결점 대칭형 포워딩 파이프라인 구축 진행 중 (공격 탐지 로직 추가 전 정상 패킷 왕복 검증 목표)
+        - [x] (2026-09-09 실증 완료): `1_external_net`/`2_dmz_net` 네이밍을 통한 `eth0(External)`=`172.22.0.2` / `eth1(DMZ)`=`172.25.0.3` 인터페이스 할당 순서 영구 고정 완료. 듀얼 Raw 소켓(`ext_sock`, `dmz_sock`) 및 `poll()` 기반 인바운드 캡처(`[L3 Inbound]`) 확인 및 로컬 목적지 반사 무한 루프 차단 가드(Loop Guard) 실증 완료
     - [ ] ② 스크리닝 라우터(L3/L4 stateless 필터링) 구현: 특정 IP/Port 기반의 Stateless 차단/허용 룰셋(Default-Deny 또는 Blacklist) 구현 및 동작 확인
     - [ ] ③ Ochlos로 stateless 필터 우회 공격(SYN Flooding / 비정상 세션 주입) 실증
     - [ ] ④ 스테이트풀 인스펙션(Stateful Inspection)으로 해당 구멍 패치 (TCP 상태 테이블 관리)
