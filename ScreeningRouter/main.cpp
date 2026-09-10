@@ -1,11 +1,34 @@
+#include <arpa/inet.h> // inet_pton(), inet_ntop()
 #include <iostream>
 #include <linux/if_packet.h> // sockaddr_ll struct
 #include <net/ethernet.h>    // ETH_P_IP protocol constant
 #include <net/if.h>          // if_nametoindex()
 #include <netinet/in.h>      // htons()
+#include <netinet/ip.h>      // struct iphdr
 #include <poll.h>            // poll(), struct pollfd
 #include <sys/socket.h>      // socket(), AF_PACKET, SOCK_DGRAM
 #include <unistd.h>          // close() system call
+
+// RFC 791 Standard IP Checksum calculation function
+uint16_t calculate_checksum(const void *data, size_t length) {
+    const uint16_t *buf = static_cast<const uint16_t *>(data);
+    uint32_t sum = 0;
+
+    while (length > 1) {
+        sum += *buf++;
+        length -= 2;
+    }
+
+    if (length == 1) {
+        sum += *reinterpret_cast<const uint8_t *>(buf); // 홀수 byte 처리
+    }
+
+    while (sum >> 16) {
+        sum = (sum & 0xFFFF) + (sum >> 16); // 캐리 bit 가산
+    }
+
+    return static_cast<uint16_t>(~sum); // 1의 보수 반환
+}
 
 int main() {
     // 1. eth0 전용 Raw socket 생성
@@ -60,6 +83,8 @@ int main() {
 
     std::cout << "[*] Screening Router packet forwarding loop started..." << std::endl;
 
+    char buffer[2048]; // packet 수신용
+
     while (true) {
         // kernel에 수신 event 대기 요청
         int ret = poll(fds, 2, -1);
@@ -70,10 +95,97 @@ int main() {
 
         if (fds[0].revents & POLLIN) {
             // forwarding logic
+            struct sockaddr_ll sll{};
+            socklen_t sll_len = sizeof(sll);
+
+            // eth0로부터 L3 IPv4 packet 수신
+            ssize_t data_size = recvfrom(ext_sock, buffer, sizeof(buffer), 0, reinterpret_cast<struct sockaddr *>(&sll), &sll_len);
+
+            // IPv4 헤더의 물리적 최소 크기를 검증.
+            // 기형 패킷 차단 -> Buffer Over-read
+            if (data_size < static_cast<ssize_t>(sizeof(struct iphdr)))
+                continue; // 비정상 runt packet 폐기
+            // Runt Packet : 통신 규격이 정한 최소 크기보다 작아서 정상적으로 처리할 수 없는 pakcet
+
+            // screening router 자신이 송출한 packet의 loopback 방지
+            if (sll.sll_pkttype == PACKET_OUTGOING)
+                continue;
+
+            // L3 IPv4 header mapping
+            struct iphdr *ip_header = reinterpret_cast<struct iphdr *>(buffer);
+            char src_ip[INET_ADDRSTRLEN];
+            char dst_ip[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, &(ip_header->saddr), src_ip, INET_ADDRSTRLEN);
+            inet_ntop(AF_INET, &(ip_header->daddr), dst_ip, INET_ADDRSTRLEN);
+
+            // Log
+            std::cout << "[eth0 -> Inbound] " << src_ip << " -> " << dst_ip << " (Proto: " << static_cast<int>(ip_header->protocol) << ", Size: " << data_size << " bytes)" << std::endl;
+
+            // 2. DNAT: dst ip를 ReverseProxy ip로 변경
+            struct in_addr target_ip{};
+            inet_pton(AF_INET, "172.20.0.3", &target_ip);
+            ip_header->daddr = target_ip.s_addr;
+
+            // 3. IP Checksum 재계산
+            ip_header->check = 0; // 과거 체크섬 값을 완전히 제거
+            ip_header->check = calculate_checksum(ip_header, ip_header->ihl * 4);
+
+            // 4. eth1로 packet 송출
+            struct sockaddr_ll out_sll{};
+            out_sll.sll_family = AF_PACKET;
+            out_sll.sll_protocol = htons(ETH_P_IP);
+            out_sll.sll_ifindex = dmz_ifindex;
+            out_sll.sll_halen = ETH_ALEN; // MAC 주소 길이
+            for (int i = 0; i < ETH_ALEN; ++i) {
+                // L2 Broadcast 전송. 0xFF로 채우면 브릿지가 ReverseProxy에게 packet을 온전히 전송
+                out_sll.sll_addr[i] = 0xFF;
+            }
+
+            sendto(dmz_sock, buffer, data_size, 0, reinterpret_cast<struct sockaddr *>(&out_sll), sizeof(out_sll));
         }
 
         if (fds[1].revents & POLLIN) {
-            // forwarding logic
+            struct sockaddr_ll sll{};
+            socklen_t sll_len = sizeof(sll);
+
+            // eth1(DMZ)로부터 백엔드 응답 패킷 수신 (Receive backend response from eth1)
+            ssize_t data_size = recvfrom(dmz_sock, buffer, sizeof(buffer), 0, reinterpret_cast<struct sockaddr *>(&sll), &sll_len);
+            if (data_size < static_cast<ssize_t>(sizeof(struct iphdr)))
+                continue; // 런트 패킷 폐기 (Discard runt packet)
+
+            // dmz_sock 자신이 송출한 패킷 루프백 방지 (Prevent loopback of self-transmitted packets)
+            if (sll.sll_pkttype == PACKET_OUTGOING)
+                continue;
+
+            // L3 IPv4 헤더 매핑 (Map L3 IPv4 header)
+            struct iphdr *ip_header = reinterpret_cast<struct iphdr *>(buffer);
+            char src_ip[INET_ADDRSTRLEN];
+            char dst_ip[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, &(ip_header->saddr), src_ip, INET_ADDRSTRLEN);
+            inet_ntop(AF_INET, &(ip_header->daddr), dst_ip, INET_ADDRSTRLEN);
+
+            std::cout << "[eth1 -> Outbound] " << src_ip << " -> " << dst_ip << " (Proto: " << static_cast<int>(ip_header->protocol) << ", Size: " << data_size << " bytes)" << std::endl;
+
+            // 2. Reverse NAT: 출발지 IP를 스크리닝 라우터의 외부 IP로 복원 (Restore src IP to Screening Router external IP)
+            struct in_addr router_ext_ip{};
+            inet_pton(AF_INET, "172.28.0.2", &router_ext_ip);
+            ip_header->saddr = router_ext_ip.s_addr;
+
+            // 3. IP Checksum 재계산 (Recalculate IP Checksum)
+            ip_header->check = 0;
+            ip_header->check = calculate_checksum(ip_header, ip_header->ihl * 4);
+
+            // 4. eth0로 packet 송출 (Transmit packet via eth0)
+            struct sockaddr_ll out_sll{};
+            out_sll.sll_family = AF_PACKET;
+            out_sll.sll_protocol = htons(ETH_P_IP);
+            out_sll.sll_ifindex = ext_ifindex;
+            out_sll.sll_halen = ETH_ALEN;
+            for (int i = 0; i < ETH_ALEN; ++i) {
+                out_sll.sll_addr[i] = 0xFF;
+            }
+
+            sendto(ext_sock, buffer, data_size, 0, reinterpret_cast<struct sockaddr *>(&out_sll), sizeof(out_sll));
         }
     }
 
