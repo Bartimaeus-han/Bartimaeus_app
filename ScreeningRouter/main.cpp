@@ -1,10 +1,12 @@
 #include <arpa/inet.h> // inet_pton(), inet_ntop()
+#include <cstring>     // memcpy()
 #include <iostream>
 #include <linux/if_packet.h> // sockaddr_ll struct
 #include <net/ethernet.h>    // ETH_P_IP protocol constant
 #include <net/if.h>          // if_nametoindex()
 #include <netinet/in.h>      // htons()
 #include <netinet/ip.h>      // struct iphdr
+#include <netinet/tcp.h>     // struct tcphdr
 #include <poll.h>            // poll(), struct pollfd
 #include <sys/socket.h>      // socket(), AF_PACKET, SOCK_DGRAM
 #include <unistd.h>          // close() system call
@@ -28,6 +30,39 @@ uint16_t calculate_checksum(const void *data, size_t length) {
     }
 
     return static_cast<uint16_t>(~sum); // 1의 보수 반환
+}
+
+// L4 TCP Pseudo-Header struct
+// __attribute__((packed)) : struct 안에 padding byte를 넣지 않는다.
+struct __attribute__((packed)) pseudo_header {
+    uint32_t src_ip;
+    uint32_t dst_ip;
+    uint8_t reserved;
+    uint8_t protocol;
+    uint16_t tcp_length;
+};
+
+// TCP Checksum calculation function
+uint16_t calculate_tcp_checksum(struct iphdr *ip_header, struct tcphdr *tcp_header) {
+    uint16_t ip_header_len = ip_header->ihl * 4;
+    // tcp header 앞에 ip header가 위치한다.
+    uint16_t tcp_seg_len = ntohs(ip_header->tot_len) - ip_header_len;
+
+    // 계산을 위한 pseudo header 정보 입력
+    pseudo_header psh{};
+    psh.src_ip = ip_header->saddr;
+    psh.dst_ip = ip_header->daddr;
+    psh.reserved = 0;
+    psh.protocol = IPPROTO_TCP;
+    psh.tcp_length = htons(tcp_seg_len);
+
+    char pseudo_packet[2048];
+    memcpy(pseudo_packet, &psh, sizeof(psh));
+
+    tcp_header->check = 0; // 계산 전 초기화
+    memcpy(pseudo_packet + sizeof(psh), tcp_header, tcp_seg_len);
+
+    return calculate_checksum(pseudo_packet, sizeof(psh) + tcp_seg_len);
 }
 
 int main() {
@@ -123,12 +158,18 @@ int main() {
 
             // 2. DNAT: dst ip를 ReverseProxy ip로 변경
             struct in_addr target_ip{};
-            inet_pton(AF_INET, "172.20.0.3", &target_ip);
+            inet_pton(AF_INET, "10.20.0.3", &target_ip);
             ip_header->daddr = target_ip.s_addr;
 
             // 3. IP Checksum 재계산
             ip_header->check = 0; // 과거 체크섬 값을 완전히 제거
             ip_header->check = calculate_checksum(ip_header, ip_header->ihl * 4);
+
+            // 3-1. TCP인 경우 checksum 재계산
+            if (ip_header->protocol == IPPROTO_TCP) {
+                struct tcphdr *tcp_header = reinterpret_cast<struct tcphdr *>(buffer + (ip_header->ihl * 4));
+                tcp_header->check = calculate_tcp_checksum(ip_header, tcp_header);
+            }
 
             // 4. eth1로 packet 송출
             struct sockaddr_ll out_sll{};
@@ -166,14 +207,26 @@ int main() {
 
             std::cout << "[eth1 -> Outbound] " << src_ip << " -> " << dst_ip << " (Proto: " << static_cast<int>(ip_header->protocol) << ", Size: " << data_size << " bytes)" << std::endl;
 
+            // ReverseProxy(10.20.0.3)가 보낸 응답이 아니면 Drop (Drop if response is not from ReverseProxy)
+            struct in_addr expected_proxy_ip{};
+            inet_pton(AF_INET, "10.20.0.3", &expected_proxy_ip);
+            if (ip_header->saddr != expected_proxy_ip.s_addr)
+                continue;
+
             // 2. Reverse NAT: 출발지 IP를 스크리닝 라우터의 외부 IP로 복원 (Restore src IP to Screening Router external IP)
             struct in_addr router_ext_ip{};
-            inet_pton(AF_INET, "172.28.0.2", &router_ext_ip);
+            inet_pton(AF_INET, "10.10.0.2", &router_ext_ip);
             ip_header->saddr = router_ext_ip.s_addr;
 
             // 3. IP Checksum 재계산 (Recalculate IP Checksum)
             ip_header->check = 0;
             ip_header->check = calculate_checksum(ip_header, ip_header->ihl * 4);
+
+            // 3-1. TCP인 경우 checksum 재계산 (Recalculate TCP checksum if TCP)
+            if (ip_header->protocol == IPPROTO_TCP) {
+                struct tcphdr *tcp_header = reinterpret_cast<struct tcphdr *>(buffer + (ip_header->ihl * 4));
+                tcp_header->check = calculate_tcp_checksum(ip_header, tcp_header);
+            }
 
             // 4. eth0로 packet 송출 (Transmit packet via eth0)
             struct sockaddr_ll out_sll{};
