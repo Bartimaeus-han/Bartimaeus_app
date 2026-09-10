@@ -43,4 +43,13 @@
   * 정보보안기사 및 KISA 가이드 기반 OSI 7계층별 공격 시나리오(L3/L4/L7) 정의
   * 공격 스크립트 실행, 실증적 시스템 리소스(RSS/VSS, 소켓 상태 등) 계측 결과 및 블루팀(Bartimaeus) 방어 피드백 기록
 
+### 7. 🌐 네트워크 구성 및 망 분리 현황
+* **파일**: [NETWORK_STATUS.md](NETWORK_STATUS.md)
+* **주요 내용**:
+  * 레드팀(Ochlos) vs 블루팀(Bartimaeus_app) 간의 3계층 망 분리(External-DMZ-Internal) 구조
+  * L3/L4 ScreeningRouter(듀얼 소켓, Loop Guard) 및 L7 ReverseProxy(4KB Paged Relay) 토폴로지
+  * Docker 가상 네트워크(1_external_net, 2_dmz_net, 3_internal_net) 및 인터페이스(eth0/eth1) 할당 현황
+  * 현재까지의 공격 실증(ICMP Flooding, TCP Connection Starvation) 결과 및 로드맵
+
+
 
