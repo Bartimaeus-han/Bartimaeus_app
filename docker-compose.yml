@@ -12,7 +12,7 @@ services:
       - mariadb_data:/var/lib/mysql
       - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     networks:
-      - internal_net #
+      - 3_internal_net
 
   app:
     build:
@@ -30,7 +30,7 @@ services:
       DB_NAME: bartimaeus_db
       DB_PORT: "3306"
     networks:
-      - internal_net
+      - 3_internal_net
     mem_limit: 2g
 
   screening-router:
@@ -77,7 +77,7 @@ volumes:
 
     # 망 분리를 위한 3대 독립 가상 네트워크 정의
 networks:
-  external_net:
+  1_external_net:
     driver: bridge # Network for incoming external traffic
     ipam:
       config:

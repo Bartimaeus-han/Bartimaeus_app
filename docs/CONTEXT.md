@@ -77,6 +77,7 @@
 | **`fef3e3a`** | `ScreeningRouter/main.cpp`, `Dockerfile`, `docker-compose.yml`, [TODO.md](TODO.md), [ARCHITECTURE.md](ARCHITECTURE.md) | **Feat/Security (ScreeningRouter 1단계 연동)** | `AF_PACKET` 기반 L3/L4 Raw 소켓 엔진 구축 및 `while(true)` 루프 전환 완료. `Dockerfile`(`AS screening-router`) 및 `docker-compose.yml`(`network_mode: "service:reverse-proxy"`, `CAP_NET_RAW`/`CAP_NET_ADMIN`) 연동 완료. 현재 구조는 사이드카 스니퍼(IDS)에 해당함을 식별하고, 향후 `external_net`/`internal_dmz_net`으로 망을 구획하는 완전 격리형 이중 홈 게이트웨이(Dual-Homed Gateway)로의 진화 계획 수립 (2026-09-07) |
 | **`ee0e454`** | `docker-compose.yml`, `ReverseProxy/main.cpp`, [TODO.md](TODO.md) | **Refactor/Security (3계층 망 분리 및 Dual-Homed 게이트웨이 구축)** | `external_net`, `dmz_net`, `internal_net` 가상 브릿지 3개로 망 분리 완료. `ScreeningRouter`를 호스트 8080 포트 단독 인입 및 이중 홈 게이트웨이로 승격하고, `ReverseProxy` 및 `app`의 외부 포트 바인딩을 제거하여 방화벽 우회 경로를 원천 차단함 (2026-09-08) |
 | **`7936ebf`** | `ScreeningRouter/main.cpp` | **WIP/Security (양방향 패킷 포워딩 및 루프 가드 중간 구현)** | `AF_PACKET` + `SOCK_DGRAM` 기반 `eth0` ↔ `eth1` 양방향 패킷 포워딩 및 `PACKET_OUTGOING` 가드 구현 완료. 기존 `ReverseProxy`의 L3 ICMP Flooding 감지 불가 문제를 상기하고, 외부 인바운드 트래픽에 대한 ICMP/SYN Flooding 탐지 및 차단 전용 구조로 재설계 결정 (2026-09-08) |
+| **`Working`** | `ScreeningRouter/main.cpp`, `docker-compose.yml`, [TODO.md](TODO.md) | **Feat/Security (대칭형 듀얼 소켓 포워딩 파이프라인 및 Loop Guard 구축)** | `1_external_net`/`2_dmz_net`/`3_internal_net` 정렬 네이밍을 통해 Docker 엔진의 `eth0`(External)/`eth1`(DMZ) 인터페이스 할당 순서 영구 고정. `AF_PACKET` + `poll()` 기반 듀얼 소켓 인바운드 캡처(`[L3 Inbound]`) 및 로컬 목적지 패킷 반사 무한 루프 차단 가드(Loop Guard) 실증 검증 완료 (2026-09-09) |
 
 ---
 

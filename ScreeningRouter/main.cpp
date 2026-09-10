@@ -66,15 +66,20 @@ uint16_t calculate_tcp_checksum(struct iphdr *ip_header, struct tcphdr *tcp_head
 }
 
 int main() {
+    std::cout << std::unitbuf;
+
     // 1. eth0 전용 Raw socket 생성
     int ext_sock = socket(AF_PACKET, SOCK_DGRAM, htons(ETH_P_IP));
     if (ext_sock < 0) {
-        // error msg
+        std::cerr << "[!] Failed to create ext_sock (Root privilege required)" << std::endl;
+        return 1;
     }
-    // 2. eht1 전용 Raw socket 생성
+    // 2. eth1 전용 Raw socket 생성 (Create raw socket for eth1)
     int dmz_sock = socket(AF_PACKET, SOCK_DGRAM, htons(ETH_P_IP));
     if (dmz_sock < 0) {
-        // error msg
+        std::cerr << "[!] Failed to create dmz_sock (Root privilege required)" << std::endl;
+        close(ext_sock);
+        return 1;
     }
 
     std::cout << "[+] Sockets created successfully (ext_sock: " << ext_sock << ", dmz_sock: " << dmz_sock << ")" << std::endl;
@@ -84,7 +89,10 @@ int main() {
     unsigned int dmz_ifindex = if_nametoindex("eth1");
 
     if (ext_ifindex == 0 || dmz_ifindex == 0) {
-        // error msg & close() & return
+        std::cerr << "[!] Failed to find network interfaces (eth0 or eth1 not found)" << std::endl;
+        close(ext_sock);
+        close(dmz_sock);
+        return 1;
     }
 
     std::cout << "[+] Interface identified - eth0(External): " << ext_ifindex << ", eth1(DMZ): " << dmz_ifindex << std::endl;
@@ -95,7 +103,10 @@ int main() {
     ext_sll.sll_protocol = htons(ETH_P_IP);
     ext_sll.sll_ifindex = ext_ifindex;
     if (bind(ext_sock, reinterpret_cast<struct sockaddr *>(&ext_sll), sizeof(ext_sll)) < 0) {
-        // error
+        std::cerr << "[!] Failed to bind ext_sock to eth0" << std::endl;
+        close(ext_sock);
+        close(dmz_sock);
+        return 1;
     }
 
     struct sockaddr_ll dmz_sll{};
@@ -103,7 +114,10 @@ int main() {
     dmz_sll.sll_protocol = htons(ETH_P_IP);
     dmz_sll.sll_ifindex = dmz_ifindex;
     if (bind(dmz_sock, reinterpret_cast<struct sockaddr *>(&dmz_sll), sizeof(dmz_sll)) < 0) {
-        // error
+        std::cerr << "[!] Failed to bind dmz_sock to eth1" << std::endl;
+        close(ext_sock);
+        close(dmz_sock);
+        return 1;
     }
 
     std::cout << "[+] Sockets successfully bound to respective interfaces" << std::endl;
@@ -128,6 +142,7 @@ int main() {
             break;
         }
 
+        //
         if (fds[0].revents & POLLIN) {
             // forwarding logic
             struct sockaddr_ll sll{};
