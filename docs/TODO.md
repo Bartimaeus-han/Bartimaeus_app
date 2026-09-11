@@ -16,6 +16,7 @@
     - [/] ① Ochlos C++ TCP SYN Flooding 및 ICMP 공격 실증을 위한 진정한 L3/L4 스크리닝 라우터 설계 및 구현
         - [x] (2026-09-08 망 구획 완료): `external_net`, `dmz_net`, `internal_net` 3계층 망 분리 및 `ScreeningRouter` 이중 홈(Dual-Homed) 게이트웨이 배치 완료. `ReverseProxy` 및 `app` 외부 포트 매핑을 제거하여 방화벽 우회 경로 차단 완료
         - [x] (2026-09-10 대칭형 양방향 포워딩 및 L3 DNAT/체크섬 파이프라인 구축 완료): 듀얼 소켓(`ext_sock`, `dmz_sock`) 및 `poll()` I/O 멀티플렉싱 기반으로 `eth0` ↔ `eth1` 대칭형 패킷 포워딩 파이프라인 완성. 양방향 런트/`PACKET_OUTGOING` 가드, L3 DNAT 및 Reverse NAT, RFC 791 헤더 체크섬 재계산, L2 브로드캐스트(`0xFF`) 송출 로직 구현 및 빌드 검증(0 errors) 완료
+        - [x] (2026-09-11 Full NAT 및 다중 세션 테이블(NAPT) 구축 완료): SNAT(`saddr`을 라우터 DMZ IP `10.20.0.2`로 변환) 및 Reverse DNAT 구현으로 비대칭 라우팅 및 반환 경로 상실 문제 해결. `std::unordered_map` 기반의 포트 매핑 다중 세션 테이블(`session_table`) 및 미등록 패킷 드롭 가드 구축 완료. 밀리초 정밀 타임스탬프 로깅 반영 (빌드 0 errors)
     - [ ] ② 스크리닝 라우터(L3/L4 stateless 필터링) 구현: 특정 IP/Port 기반의 Stateless 차단/허용 룰셋(Default-Deny 또는 Blacklist) 구현 및 동작 확인
     - [ ] ③ Ochlos로 stateless 필터 우회 공격(SYN Flooding / 비정상 세션 주입) 실증
     - [ ] ④ 스테이트풀 인스펙션(Stateful Inspection)으로 해당 구멍 패치 (TCP 상태 테이블 관리)

@@ -80,6 +80,7 @@
 | **`2625213`** | `ScreeningRouter/main.cpp`, `docker-compose.yml` | **Feat/Security (듀얼 소켓 poll 엔진 기초)** | `1_external_net`/`2_dmz_net`/`3_internal_net` 접두사 네이밍을 통해 Docker 엔진의 `eth0`(External)/`eth1`(DMZ) 인터페이스 할당 순서 고정 및 `poll()` 기초 파이프라인 수립 (2026-09-09) |
 | **`722ba1a`** | `ScreeningRouter/main.cpp`, `docker-compose.yml` | **Feat/Security (대칭형 양방향 포워딩 & TCP 체크섬)** | RFC 791 IP 체크섬 및 Pseudo 헤더 기반 TCP 체크섬 재계산, L3 DNAT(`10.20.0.3`) 및 Reverse NAT(`10.10.0.2`), 브로드캐스트(`0xFF`) 송출 파이프라인 구축 (2026-09-10) |
 | **`107f50d`** | `ScreeningRouter/main.cpp`, `docker-compose.yml` | **Fix/Security (3계층 네트워크 명칭 정합성 & 루프백 차단)** | 머지 시 어긋났던 `docker-compose.yml` 네트워크 선언부(`2_dmz_net`, `3_internal_net`) 정합성 수정 및 라우터 외부 IP(`10.10.0.2`) 반사 패킷 루프백 차단 가드 보강 (2026-09-11) |
+| **`WIP`** | `ScreeningRouter/main.cpp` | **Feat/Security (Full NAT & 다중 세션 테이블(NAPT) 및 정밀 로깅)** | 비대칭 라우팅 방지를 위해 인바운드 SNAT(`10.20.0.2`) 및 아웃바운드 Reverse DNAT 구현 완료. `std::unordered_map` 기반의 포트 매핑 다중 세션 테이블(`session_table`) 및 미등록 비인가 패킷 드롭 가드 구축 완료. Docker 런타임 환경에서 양방향 패킷 왕복 통신 실증 성공 및 밀리초(`HH:MM:SS.mmm`) 단위 실시간 정밀 타임스탬프 로깅 반영 완료 (2026-09-11) |
 
 ---
 
