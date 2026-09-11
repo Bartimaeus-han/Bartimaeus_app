@@ -85,6 +85,7 @@ int main() {
     std::cout << "[+] Sockets created successfully (ext_sock: " << ext_sock << ", dmz_sock: " << dmz_sock << ")" << std::endl;
 
     // 3. Network Interface index 조회
+    // 1_external_net이 eth0 (10.10.0.2), 2_dmz_net이 eth1 (10.20.0.2)
     unsigned int ext_ifindex = if_nametoindex("eth0");
     unsigned int dmz_ifindex = if_nametoindex("eth1");
 
@@ -148,7 +149,7 @@ int main() {
             struct sockaddr_ll sll{};
             socklen_t sll_len = sizeof(sll);
 
-            // eth0로부터 L3 IPv4 packet 수신
+            // eth1로부터 L3 IPv4 packet 수신
             ssize_t data_size = recvfrom(ext_sock, buffer, sizeof(buffer), 0, reinterpret_cast<struct sockaddr *>(&sll), &sll_len);
 
             // IPv4 헤더의 물리적 최소 크기를 검증.
@@ -168,8 +169,14 @@ int main() {
             inet_ntop(AF_INET, &(ip_header->saddr), src_ip, INET_ADDRSTRLEN);
             inet_ntop(AF_INET, &(ip_header->daddr), dst_ip, INET_ADDRSTRLEN);
 
+            // 라우터 자신이 보낸 반사 패킷 루프백 차단
+            struct in_addr router_ext_ip{};
+            inet_pton(AF_INET, "10.10.0.2", &router_ext_ip);
+            if (ip_header->saddr == router_ext_ip.s_addr)
+                continue;
+
             // Log
-            std::cout << "[eth0 -> Inbound] " << src_ip << " -> " << dst_ip << " (Proto: " << static_cast<int>(ip_header->protocol) << ", Size: " << data_size << " bytes)" << std::endl;
+            std::cout << "[eth0(Ext) -> Inbound] " << src_ip << " -> " << dst_ip << " (Proto: " << static_cast<int>(ip_header->protocol) << ", Size: " << data_size << " bytes)" << std::endl;
 
             // 2. DNAT: dst ip를 ReverseProxy ip로 변경
             struct in_addr target_ip{};
@@ -220,7 +227,7 @@ int main() {
             inet_ntop(AF_INET, &(ip_header->saddr), src_ip, INET_ADDRSTRLEN);
             inet_ntop(AF_INET, &(ip_header->daddr), dst_ip, INET_ADDRSTRLEN);
 
-            std::cout << "[eth1 -> Outbound] " << src_ip << " -> " << dst_ip << " (Proto: " << static_cast<int>(ip_header->protocol) << ", Size: " << data_size << " bytes)" << std::endl;
+            std::cout << "[eth1(DMZ) -> Outbound] " << src_ip << " -> " << dst_ip << " (Proto: " << static_cast<int>(ip_header->protocol) << ", Size: " << data_size << " bytes)" << std::endl;
 
             // ReverseProxy(10.20.0.3)가 보낸 응답이 아니면 Drop (Drop if response is not from ReverseProxy)
             struct in_addr expected_proxy_ip{};

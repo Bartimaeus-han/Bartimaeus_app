@@ -43,10 +43,10 @@ services:
     ports:
       - "8080:8080" # Sole entry point for external traffic
     networks:
-      external_net:
+      1_external_net:
         # External incoming interface (eth0)
         ipv4_address: 10.10.0.2 # 외부 진입 고정 IP
-      dmz_net:
+      2_dmz_net:
         # DMZ forwarding interface (eht1)
         ipv4_address: 10.20.0.2 # DMZ router 고정 IP
     cap_add:
@@ -67,10 +67,10 @@ services:
     environment:
       BACKEND_HOST: app
     networks:
-      dmz_net:
+      2_dmz_net:
         ipv4_address: 10.20.0.3 # DMZ Proxy 고정 IP
       # Forward traffic to backend app
-      internal_net:
+      3_internal_net:
 
 volumes:
   mariadb_data:
@@ -82,10 +82,10 @@ networks:
     ipam:
       config:
         - subnet: 10.10.0.0/24 # Fix external network subnet
-  dmz_net:
+  2_dmz_net:
     driver: bridge # DMZ zone between screening router and reverse proxy
     ipam:
       config:
         - subnet: 10.20.0.0/24 # Fix DMZ network subnet
-  internal_net:
+  3_internal_net:
     driver: bridge # Internal private network between backend app and DB
