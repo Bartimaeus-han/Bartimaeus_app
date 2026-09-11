@@ -1,8 +1,9 @@
 #include <arpa/inet.h> // inet_pton(), inet_ntop()
 #include <chrono>      // system_clock, milliseconds
 #include <cstdint>
-#include <cstring> // memcpy()
-#include <ctime>   // localtime_r
+#include <cstring>   // memcpy()
+#include <ctime>     // localtime_r
+#include <ifaddrs.h> // getifaddrs(), freeifaddrs()
 #include <iostream>
 #include <linux/if_packet.h> // sockaddr_ll struct
 #include <net/ethernet.h>    // ETH_P_IP protocol constant
@@ -111,19 +112,50 @@ int main() {
 
     std::cout << "[+] Sockets created successfully (ext_sock: " << ext_sock << ", dmz_sock: " << dmz_sock << ")" << std::endl;
 
-    // 3. Network Interface index 조회
-    // 1_external_net이 eth0 (10.10.0.2), 2_dmz_net이 eth1 (10.20.0.2)
-    unsigned int ext_ifindex = if_nametoindex("eth0");
-    unsigned int dmz_ifindex = if_nametoindex("eth1");
+    // 3. Network Interface IP 기반 동적 탐색 (Docker 인터페이스 역전 방지)
+    struct ifaddrs *ifaddr = nullptr;
+    unsigned int ext_ifindex = 0;
+    unsigned int dmz_ifindex = 0;
+    std::string ext_ifname = "unknown", dmz_ifname = "unknown";
+
+    if (getifaddrs(&ifaddr) != -1) {
+        for (struct ifaddrs *ifa = ifaddr; ifa != nullptr; ifa = ifa->ifa_next) {
+            if (!ifa->ifa_addr || ifa->ifa_addr->sa_family != AF_INET)
+                continue;
+
+            struct sockaddr_in *sa = reinterpret_cast<struct sockaddr_in *>(ifa->ifa_addr);
+            char ip[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, &(sa->sin_addr), ip, sizeof(ip));
+
+            if (std::string(ip) == "10.10.0.2") {
+                ext_ifindex = if_nametoindex(ifa->ifa_name);
+                ext_ifname = ifa->ifa_name;
+            } else if (std::string(ip) == "10.20.0.2") {
+                dmz_ifindex = if_nametoindex(ifa->ifa_name);
+                dmz_ifname = ifa->ifa_name;
+            }
+        }
+        freeifaddrs(ifaddr);
+    }
+
+    // fallback: 탐색 실패 시 기본 인터페이스 시도
+    if (ext_ifindex == 0) {
+        ext_ifindex = if_nametoindex("eth1");
+        ext_ifname = "eth1(fallback)";
+    }
+    if (dmz_ifindex == 0) {
+        dmz_ifindex = if_nametoindex("eth0");
+        dmz_ifname = "eth0(fallback)";
+    }
 
     if (ext_ifindex == 0 || dmz_ifindex == 0) {
-        std::cerr << "[!] Failed to find network interfaces (eth0 or eth1 not found)" << std::endl;
+        std::cerr << "[!] Failed to find network interfaces (External or DMZ not found)" << std::endl;
         close(ext_sock);
         close(dmz_sock);
         return 1;
     }
 
-    std::cout << "[+] Interface identified - eth0(External): " << ext_ifindex << ", eth1(DMZ): " << dmz_ifindex << std::endl;
+    std::cout << "[+] Interface identified - External: " << ext_ifname << " (" << ext_ifindex << "), DMZ: " << dmz_ifname << " (" << dmz_ifindex << ")" << std::endl;
 
     // 4. 각 socket을 해당하는 network interface에 bind
     struct sockaddr_ll ext_sll {};
@@ -207,7 +239,7 @@ int main() {
                 continue;
 
             // Log
-            std::cout << get_timestamp() << " [eth0(Ext) -> Inbound] " << src_ip << " -> " << dst_ip << " (Proto: " << static_cast<int>(ip_header->protocol) << ", Size: " << data_size << " bytes)" << std::endl;
+            std::cout << get_timestamp() << " " << src_ip << " -> " << dst_ip << " (Proto: " << static_cast<int>(ip_header->protocol) << ", Size: " << data_size << " bytes)" << std::endl;
 
             // 2-1. DNAT: dst ip를 ReverseProxy ip로 변경
             struct in_addr target_ip {};
@@ -265,12 +297,6 @@ int main() {
 
             // L3 IPv4 헤더 매핑 (Map L3 IPv4 header)
             struct iphdr *ip_header = reinterpret_cast<struct iphdr *>(buffer);
-            char src_ip[INET_ADDRSTRLEN];
-            char dst_ip[INET_ADDRSTRLEN];
-            inet_ntop(AF_INET, &(ip_header->saddr), src_ip, INET_ADDRSTRLEN);
-            inet_ntop(AF_INET, &(ip_header->daddr), dst_ip, INET_ADDRSTRLEN);
-
-            std::cout << get_timestamp() << " [eth1(DMZ) -> Outbound] " << src_ip << " -> " << dst_ip << " (Proto: " << static_cast<int>(ip_header->protocol) << ", Size: " << data_size << " bytes)" << std::endl;
 
             // ReverseProxy(10.20.0.3)가 보낸 응답이 아니면 Drop (Drop if response is not from ReverseProxy)
             struct in_addr expected_proxy_ip {};
