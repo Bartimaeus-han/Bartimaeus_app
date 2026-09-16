@@ -13,9 +13,11 @@
 #include <netinet/tcp.h>     // struct tcphdr
 #include <netinet/udp.h>     // struct udphdr
 #include <poll.h>            // poll(), struct pollfd
-#include <sys/socket.h>      // socket(), AF_PACKET, SOCK_DGRAM
-#include <unistd.h>          // close() system call
-#include <unordered_map>     //
+#include <string>
+#include <sys/socket.h>  // socket(), AF_PACKET, SOCK_DGRAM
+#include <unistd.h>      // close() system call
+#include <unordered_map> //
+#include <vector>
 
 // 밀리초 포함 실시간 타임스탬프 생성 함수 (Generate real-time timestamp with milliseconds)
 std::string get_timestamp() {
@@ -23,13 +25,74 @@ std::string get_timestamp() {
     time_t t = std::chrono::system_clock::to_time_t(now);
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
 
-    struct tm tm_info {};
+    struct tm tm_info{};
     localtime_r(&t, &tm_info);
 
     char buf[32];
     snprintf(buf, sizeof(buf), "[%02d:%02d:%02d.%03ld]",
              tm_info.tm_hour, tm_info.tm_min, tm_info.tm_sec, static_cast<long>(ms.count()));
     return buf;
+}
+
+// ACL packet 처리 정책 enum
+enum class Action {
+    ALLOW,
+    DENY
+};
+
+// L3/L4 packet 식별용 5-Tuple 구조체
+struct FiveTuple {
+    uint8_t protocol;
+    uint32_t src_ip;
+    uint32_t dst_ip;
+    uint16_t src_port;
+    uint16_t dst_port;
+};
+
+// L3/L4 ACL 규칙 구조체
+struct AclRule {
+    std::string rule_name; // 식별용 규칙 이름
+    FiveTuple criteria;
+    // Action on match
+    Action action;
+};
+
+// ACL match result struct
+struct AclMatchResult {
+    Action action;
+    // 룰 이름을 가지고 작업한다.
+    std::string rule_name;
+};
+
+// L3/L4 5-Tuple 기반 ACL 순회 평가 함수 (Evaluate packet against ACL rules in First-Match order)
+AclMatchResult evaluate_acl(const std::vector<AclRule> &rules, const FiveTuple &packet) {
+    for (const auto &rule : rules) {
+        // 1. 프로토콜 검사 (0이면 ANY로 건너뜀) (Protocol check - 0 means ANY)
+        if (rule.criteria.protocol != 0 && rule.criteria.protocol != packet.protocol)
+            continue;
+
+        // 2. 출발지 IP 검사 (0이면 ANY로 건너뜀) (Source IP check - 0 means ANY)
+        if (rule.criteria.src_ip != 0 && rule.criteria.src_ip != packet.src_ip)
+            continue;
+
+        // 3. 목적지 IP 검사 (0이면 ANY로 건너뜀) (Destination IP check - 0 means ANY)
+        if (rule.criteria.dst_ip != 0 && rule.criteria.dst_ip != packet.dst_ip)
+            continue;
+
+        // 4. 출발지 포트 검사 (0이면 ANY로 건너뜀) (Source Port check - 0 means ANY)
+        if (rule.criteria.src_port != 0 && rule.criteria.src_port != packet.src_port)
+            continue;
+
+        // 5. 목적지 포트 검사 (0이면 ANY로 건너뜀) (Destination Port check - 0 means ANY)
+        if (rule.criteria.dst_port != 0 && rule.criteria.dst_port != packet.dst_port)
+            continue;
+
+        // 모든 5-Tuple 조건 일치 시 즉시 해당 룰의 정책 반환 (First-Match-Wins)
+        return {rule.action, rule.rule_name};
+    }
+
+    // 일치하는 규칙이 없을 경우 기본 차단 정책 적용 (Default-Deny policy if no rule matched)
+    return {Action::DENY, "Default-Deny"};
 }
 
 // NPAT session entry struct
@@ -181,7 +244,7 @@ int main() {
     std::cout << "[+] Interface identified - External: " << ext_ifname << " (" << ext_ifindex << "), DMZ: " << dmz_ifname << " (" << dmz_ifindex << ")" << std::endl;
 
     // 4. 각 socket을 해당하는 network interface에 bind
-    struct sockaddr_ll ext_sll {};
+    struct sockaddr_ll ext_sll{};
     ext_sll.sll_family = AF_PACKET;
     ext_sll.sll_protocol = htons(ETH_P_IP);
     ext_sll.sll_ifindex = ext_ifindex;
@@ -192,7 +255,7 @@ int main() {
         return 1;
     }
 
-    struct sockaddr_ll dmz_sll {};
+    struct sockaddr_ll dmz_sll{};
     dmz_sll.sll_family = AF_PACKET;
     dmz_sll.sll_protocol = htons(ETH_P_IP);
     dmz_sll.sll_ifindex = dmz_ifindex;
@@ -217,9 +280,27 @@ int main() {
 
     char buffer[2048]; // packet 수신용
 
-    struct in_addr original_client_ip {}; // 원본 Client IP 백업용
+    struct in_addr original_client_ip{}; // 원본 Client IP 백업용
 
+    // NPAT를 위한 세션 저장 테이블
     std::unordered_map<uint16_t, NatSession> session_table;
+
+    // ACL 룰 테이블
+    std::vector<AclRule> acl_rules;
+
+    // 1. Reverse Proxy web port 허용 규칙
+    acl_rules.push_back(AclRule{
+        .rule_name = "ALLOW_HTTP_8080", // rule의 이름. 8080으로 들어오는 http를 허용해준다는 뜻
+        // TCP Protocol로, 목적지 포트가 8080인 모든 패킷에 대하여
+        .criteria = FiveTuple{
+            .protocol = IPPROTO_TCP,
+            .src_ip = 0,
+            .dst_ip = 0,
+            .src_port = 0,
+            .dst_port = 8080},
+        // 허용한다
+        .action = Action::ALLOW});
+    //
 
     while (true) {
         // kernel에 수신 event 대기 요청
@@ -231,11 +312,10 @@ int main() {
 
         //
         if (fds[0].revents & POLLIN) {
-            // forwarding logic
-            struct sockaddr_ll sll {};
+            struct sockaddr_ll sll{};
             socklen_t sll_len = sizeof(sll);
 
-            // eth1로부터 L3 IPv4 packet 수신
+            // 1. 외부망으로부터 IPv4 패킷을 수신
             ssize_t data_size = recvfrom(ext_sock, buffer, sizeof(buffer), 0, reinterpret_cast<struct sockaddr *>(&sll), &sll_len);
 
             // IPv4 헤더의 물리적 최소 크기를 검증.
@@ -256,23 +336,38 @@ int main() {
             inet_ntop(AF_INET, &(ip_header->daddr), dst_ip, INET_ADDRSTRLEN);
 
             // 라우터 자신이 보낸 반사 패킷 루프백 차단
-            struct in_addr router_ext_ip {};
+            struct in_addr router_ext_ip{};
             inet_pton(AF_INET, "10.10.0.2", &router_ext_ip);
             if (ip_header->saddr == router_ext_ip.s_addr)
                 continue;
+
+            // L4 포트 번호 추출
+            uint16_t client_src_port = 0;
+            uint16_t client_dst_port = 0;
+            if (ip_header->protocol == IPPROTO_TCP) {
+                struct tcphdr *tcp_hdr = reinterpret_cast<struct tcphdr *>(buffer + (ip_header->ihl * 4));
+
+                client_src_port = ntohs(tcp_hdr->source);
+                client_dst_port = ntohs(tcp_hdr->dest);
+            } else if (ip_header->protocol == IPPROTO_UDP) {
+                struct udphdr *udp_hdr = reinterpret_cast<struct udphdr *>(buffer + (ip_header->ihl * 4));
+
+                client_src_port = ntohs(udp_hdr->source);
+                client_dst_port = ntohs(udp_hdr->dest);
+            }
 
             // Log
             std::cout << get_timestamp() << " " << src_ip << " -> " << dst_ip << " (Proto: " << static_cast<int>(ip_header->protocol) << ", Size: " << data_size << " bytes)" << std::endl;
 
             // 2-1. DNAT: dst ip를 ReverseProxy ip로 변경
-            struct in_addr target_ip {};
+            struct in_addr target_ip{};
             inet_pton(AF_INET, "10.20.0.3", &target_ip);
             ip_header->daddr = target_ip.s_addr;
 
             // 2-2. SNAT: src ip를 screening router DMZ ip로 변경
             original_client_ip.s_addr = ip_header->saddr;
 
-            struct in_addr router_dmz_if_ip {};
+            struct in_addr router_dmz_if_ip{};
             inet_pton(AF_INET, "10.20.0.2", &router_dmz_if_ip);
             ip_header->saddr = router_dmz_if_ip.s_addr;
 
@@ -300,7 +395,7 @@ int main() {
             }
 
             // 4. eth1로 packet 송출
-            struct sockaddr_ll out_sll {};
+            struct sockaddr_ll out_sll{};
             out_sll.sll_family = AF_PACKET;
             out_sll.sll_protocol = htons(ETH_P_IP);
             out_sll.sll_ifindex = dmz_ifindex;
@@ -314,7 +409,7 @@ int main() {
         }
 
         if (fds[1].revents & POLLIN) {
-            struct sockaddr_ll sll {};
+            struct sockaddr_ll sll{};
             socklen_t sll_len = sizeof(sll);
 
             // eth1(DMZ)로부터 백엔드 응답 패킷 수신 (Receive backend response from eth1)
@@ -330,13 +425,13 @@ int main() {
             struct iphdr *ip_header = reinterpret_cast<struct iphdr *>(buffer);
 
             // ReverseProxy(10.20.0.3)가 보낸 응답이 아니면 Drop (Drop if response is not from ReverseProxy)
-            struct in_addr expected_proxy_ip {};
+            struct in_addr expected_proxy_ip{};
             inet_pton(AF_INET, "10.20.0.3", &expected_proxy_ip);
             if (ip_header->saddr != expected_proxy_ip.s_addr)
                 continue;
 
             // 2. Reverse NAT: 출발지 IP를 스크리닝 라우터의 외부 IP로 복원 (Restore src IP to Screening Router external IP)
-            struct in_addr router_ext_ip {};
+            struct in_addr router_ext_ip{};
             inet_pton(AF_INET, "10.10.0.2", &router_ext_ip);
             ip_header->saddr = router_ext_ip.s_addr;
 
@@ -379,7 +474,7 @@ int main() {
             }
 
             // 4. eth0로 packet 송출 (Transmit packet via eth0)
-            struct sockaddr_ll out_sll {};
+            struct sockaddr_ll out_sll{};
             out_sll.sll_family = AF_PACKET;
             out_sll.sll_protocol = htons(ETH_P_IP);
             out_sll.sll_ifindex = ext_ifindex;
