@@ -11,6 +11,7 @@
 #include <netinet/in.h>      // htons()
 #include <netinet/ip.h>      // struct iphdr
 #include <netinet/tcp.h>     // struct tcphdr
+#include <netinet/udp.h>     // struct udphdr
 #include <poll.h>            // poll(), struct pollfd
 #include <sys/socket.h>      // socket(), AF_PACKET, SOCK_DGRAM
 #include <unistd.h>          // close() system call
@@ -60,20 +61,19 @@ calculate_checksum(const void *data, size_t length) {
     return static_cast<uint16_t>(~sum); // 1의 보수 반환
 }
 
-// L4 TCP Pseudo-Header struct
+// L4 TCP/UDP Pseudo-Header struct
 // __attribute__((packed)) : struct 안에 padding byte를 넣지 않는다.
 struct __attribute__((packed)) pseudo_header {
     uint32_t src_ip;
     uint32_t dst_ip;
     uint8_t reserved;
     uint8_t protocol;
-    uint16_t tcp_length;
+    uint16_t length;
 };
 
-// TCP Checksum calculation function
+// TCP Checksum calculation function (RFC 793)
 uint16_t calculate_tcp_checksum(struct iphdr *ip_header, struct tcphdr *tcp_header) {
     uint16_t ip_header_len = ip_header->ihl * 4;
-    // tcp header 앞에 ip header가 위치한다.
     uint16_t tcp_seg_len = ntohs(ip_header->tot_len) - ip_header_len;
 
     // 계산을 위한 pseudo header 정보 입력
@@ -82,7 +82,7 @@ uint16_t calculate_tcp_checksum(struct iphdr *ip_header, struct tcphdr *tcp_head
     psh.dst_ip = ip_header->daddr;
     psh.reserved = 0;
     psh.protocol = IPPROTO_TCP;
-    psh.tcp_length = htons(tcp_seg_len);
+    psh.length = htons(tcp_seg_len);
 
     char pseudo_packet[2048];
     memcpy(pseudo_packet, &psh, sizeof(psh));
@@ -91,6 +91,29 @@ uint16_t calculate_tcp_checksum(struct iphdr *ip_header, struct tcphdr *tcp_head
     memcpy(pseudo_packet + sizeof(psh), tcp_header, tcp_seg_len);
 
     return calculate_checksum(pseudo_packet, sizeof(psh) + tcp_seg_len);
+}
+
+// UDP Checksum calculation function (RFC 768)
+uint16_t calculate_udp_checksum(struct iphdr *ip_header, struct udphdr *udp_header) {
+    uint16_t udp_len = ntohs(udp_header->len);
+
+    // 계산을 위한 pseudo header 정보 입력
+    pseudo_header psh{};
+    psh.src_ip = ip_header->saddr;
+    psh.dst_ip = ip_header->daddr;
+    psh.reserved = 0;
+    psh.protocol = IPPROTO_UDP;
+    psh.length = htons(udp_len);
+
+    char pseudo_packet[2048];
+    memcpy(pseudo_packet, &psh, sizeof(psh));
+
+    udp_header->check = 0; // 계산 전 초기화
+    memcpy(pseudo_packet + sizeof(psh), udp_header, udp_len);
+
+    uint16_t checksum = calculate_checksum(pseudo_packet, sizeof(psh) + udp_len);
+    // RFC 768: 계산 결과가 0이면 0xFFFF 반환 (0은 체크섬 미사용을 의미)
+    return (checksum == 0) ? 0xFFFF : checksum;
 }
 
 int main() {
@@ -257,7 +280,7 @@ int main() {
             ip_header->check = 0; // 과거 체크섬 값을 완전히 제거
             ip_header->check = calculate_checksum(ip_header, ip_header->ihl * 4);
 
-            // 3-1. TCP인 경우 checksum 재계산
+            // 3-1. L4 전송 계층 프로토콜별 NAPT 세션 등록 및 체크섬 재계산
             if (ip_header->protocol == IPPROTO_TCP) {
                 struct tcphdr *tcp_header = reinterpret_cast<struct tcphdr *>(buffer + (ip_header->ihl * 4));
 
@@ -266,6 +289,14 @@ int main() {
                 session_table[client_port] = NatSession{original_client_ip, client_port};
 
                 tcp_header->check = calculate_tcp_checksum(ip_header, tcp_header);
+            } else if (ip_header->protocol == IPPROTO_UDP) {
+                struct udphdr *udp_header = reinterpret_cast<struct udphdr *>(buffer + (ip_header->ihl * 4));
+
+                // Client 출발지 포트 추출 및 세션 등록
+                uint16_t client_port = ntohs(udp_header->source);
+                session_table[client_port] = NatSession{original_client_ip, client_port};
+
+                udp_header->check = calculate_udp_checksum(ip_header, udp_header);
             }
 
             // 4. eth1로 packet 송출
@@ -309,10 +340,20 @@ int main() {
             inet_pton(AF_INET, "10.10.0.2", &router_ext_ip);
             ip_header->saddr = router_ext_ip.s_addr;
 
-            // 2-1. TCP session table 조회 및 dst IP 복원
+            // 2-1. L4 session table 조회 및 dst IP 복원
             if (ip_header->protocol == IPPROTO_TCP) {
                 struct tcphdr *tcp_header = reinterpret_cast<struct tcphdr *>(buffer + (ip_header->ihl * 4));
                 uint16_t reply_port = ntohs(tcp_header->dest);
+                auto it = session_table.find(reply_port);
+
+                // 미등록 세션의 비인가 패킷은 Drop
+                if (it == session_table.end())
+                    continue;
+
+                ip_header->daddr = it->second.client_ip.s_addr;
+            } else if (ip_header->protocol == IPPROTO_UDP) {
+                struct udphdr *udp_header = reinterpret_cast<struct udphdr *>(buffer + (ip_header->ihl * 4));
+                uint16_t reply_port = ntohs(udp_header->dest);
                 auto it = session_table.find(reply_port);
 
                 // 미등록 세션의 비인가 패킷은 Drop
@@ -326,11 +367,15 @@ int main() {
             ip_header->check = 0;
             ip_header->check = calculate_checksum(ip_header, ip_header->ihl * 4);
 
-            // 3-1. TCP인 경우 checksum 재계산 (Recalculate TCP checksum if TCP)
+            // 3-1. L4 Checksum 재계산 (Recalculate L4 TCP/UDP checksum)
             if (ip_header->protocol == IPPROTO_TCP) {
                 struct tcphdr *tcp_header = reinterpret_cast<struct tcphdr *>(buffer + (ip_header->ihl * 4));
 
                 tcp_header->check = calculate_tcp_checksum(ip_header, tcp_header);
+            } else if (ip_header->protocol == IPPROTO_UDP) {
+                struct udphdr *udp_header = reinterpret_cast<struct udphdr *>(buffer + (ip_header->ihl * 4));
+
+                udp_header->check = calculate_udp_checksum(ip_header, udp_header);
             }
 
             // 4. eth0로 packet 송출 (Transmit packet via eth0)

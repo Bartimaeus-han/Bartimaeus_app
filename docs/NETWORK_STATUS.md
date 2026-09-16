@@ -99,10 +99,11 @@
 
 | 공격 도구 소스 | 대상 계층 (OSI) | 공격 메커니즘 | 블루팀 대응 방어선 |
 | :--- | :---: | :--- | :--- |
-| **`DoS/icmp_echo_flooding.cpp`** | **L3 (Network)** | L3 Raw Socket(`IP_HDRINCL`)을 사용해 출발지 IP를 `100.0.0.99` 등으로 위조(IP Spoofing) 후 ICMP Echo Request 대량 방출 | `ScreeningRouter` eth0 ICMP 감지 및 DMZ 패킷 누출 차단 |
+| **`DoS/icmp_echo_flooding.cpp`** | **L3 (Network)** | L3 Raw Socket(`IP_HDRINCL`)을 사용해 출발지 IP를 `100.0.0.99` 등으로 위조(IP Spoofing) 후 ICMP Echo Request 대량 방출 | `ScreeningRouter` eth0 ICMP 감지 및 I/O 병목 분석 |
 | **`DoS/tcp_syn_flooding.cpp`** | **L4 (Transport)** | 3-Way Handshake 완료 후 RST/FIN 없이 소켓 배열에 장기 보관하여 연결 풀 및 대기열 고갈 유도 (Connection Starvation) | `ReverseProxy` 세션 분리 및 `ScreeningRouter` 접속 감지 |
-| **`DoS/raw_tcp_syn_flooding.cpp`** | **L3/L4 (Transport)** | Handshake를 완료하지 않는 비정상 Half-Open SYN 패킷 직접 조작 및 주입 (Backlog Queue 고갈) | `ScreeningRouter` Stateful Inspection (예정) |
-| **`include/ochlos_net.hpp`** | **L3/L4 공통** | 1바이트 패킹(`#pragma pack(push, 1)`) IPv4(20B) + TCP(20B) 헤더 구조체 및 의조 헤더(Pseudo-header) 체크섬(RFC 791/793) 라이브러리 | 바이너리 정렬 검증 완료 |
+| **`DoS/raw_tcp_syn_flooding.cpp`** | **L3/L4 (Transport)** | Handshake를 완료하지 않는 비정상 Half-Open SYN 패킷 직접 조작 및 주입 (Backlog Queue & NAPT Session State Exhaustion) | `ScreeningRouter` Stateful Inspection (예정) |
+| **`DoS/raw_udp_flooding.cpp`** | **L4 (Transport)** | L3 IPv4(20B) + UDP(8B) 수제 패킷 및 RFC 768 Pseudo-header 체크섬 기반 웹 진입점(8080) UDP 폭격 | `ScreeningRouter` Stateless Default-Deny (예정) |
+| **`include/ochlos_net.hpp`** | **L3/L4 공통** | 1바이트 패킹(`#pragma pack(push, 1)`) IPv4/TCP/UDP/ICMP 헤더 구조체 및 의조 헤더(Pseudo-header) 체크섬(RFC 768/791/793) 라이브러리 | 바이너리 정렬 검증 완료 |
 
 ---
 
@@ -176,7 +177,9 @@
 | 시나리오 ID | 공격 명칭 | 대상 계층 | 실증 결과 및 현황 | 방어 상태 |
 | :--- | :--- | :---: | :--- | :---: |
 | **SCENARIO-01** | **L4 TCP Connection Starvation** | Layer 4 | Ochlos에서 50개 커넥션 인입 시 ScreeningRouter에서 출발지 IP/Port 실시간 50건 연속 감지 확인 | **가시성 확보 완료** |
-| **SCENARIO-02** | **L3 ICMP Echo Flooding & IP Spoofing** | Layer 3 | 출발지 위조(`100.0.0.99`) 100건 방출. ScreeningRouter `eth0`에서 100건 전수 실시간 탐지 완료. DMZ(`eth1`) 및 ReverseProxy로의 누출 0건 입증 | **경계선 격리 검증 완료** |
+| **SCENARIO-02** | **L3 ICMP Echo Flooding & IP Spoofing** | Layer 3 | 10만 개 폭격 시 유실률 62.1% 실증. ScreeningRouter 동기 콘솔 I/O 병목으로 소켓 수신 버퍼 포화 규명 | **DoS 실증 완료** |
+| **SCENARIO-03** | **L4 Raw TCP SYN Flooding** | Layer 4 | 10만 개 Half-Open SYN 폭격 시 라우터 메모리 4.5배(680KiB→3.02MiB) 팽창. NAPT 세션 테이블 상태 고갈 실증 | **상태 고갈 실증 완료** |
+| **SCENARIO-04** | **L4 Raw UDP Flooding** | Layer 4 | 10만 개 폭격 시 85,211 PPS 달성 및 65% 유실률 DoS 실증. 비인가 UDP 패킷의 무차별 DMZ 유입 및 Default-Deny 필요성 규명 | **3대 DoS 라인업 완성** |
 | **ING-PIPE** | **대칭형 듀얼 소켓 포워딩 파이프라인** | Layer 3/4 | `1_external_net`/`2_dmz_net` 정렬 네이밍 고정, `AF_PACKET` + `poll()` 기반 `eth0` ↔ `eth1` 양방향 패킷 패스스루 및 Loop Guard 동작 확인 | **구축 완료** |
 
 ---
