@@ -121,6 +121,13 @@
 * **[한계 — 보안 관점의 정직한 평가]** 5회 재시도가 모두 실패하면 `getConnection()`은 `nullptr`을 반환하지만, 이미 `connection_pool.pop_back()`으로 슬롯을 꺼낸 상태이므로 그 슬롯은 풀에 반환되지 않고 **영구적으로 유실**됩니다. DB 장애가 2.5초(5×500ms)보다 길게 지속되면 요청마다 풀 크기가 하나씩 줄어들며, 결국 풀이 완전히 고갈되어 신규 요청 스레드가 `pool_cv.wait()`에서 영구 대기하는 서비스 전체 마비(THREAT-07)로 이어질 수 있습니다. 이는 완전히 해결된 상태가 아니라 장애 지속 시간을 2.5초만큼 유예시킨 것에 가깝습니다. 근본 해결(실패한 슬롯을 재시도 큐에 되돌리거나, `nullptr` 반환 시 호출자가 명확한 503 에러로 전환하는 방어 로직)은 [TODO.md](TODO.md)에 미완료 과제로 남아 있습니다.
 * **목적**: DB가 자동 재시작되는 컨테이너 환경(MariaDB)에서 순간적인 연결 끊김에 대한 복원력을 확보하되, 이 방어가 "장애 지속 시간에 비례해 결국 무력화될 수 있는 임시방편"이라는 한계를 명확히 인지하고 있어야 합니다.
 
+### 3.13 L3/L4 5-Tuple Stateless ACL 룰 엔진 및 Default-Deny 정책
+* **구현 방식**:
+  1. **5-Tuple 캡슐화 (`FiveTuple`)**: 패킷 식별 정보(`protocol`, `src_ip`, `dst_ip`, `src_port`, `dst_port`)를 Parameter Object 패턴 기반의 `FiveTuple` 구조체로 정의하고, `0`을 와일드카드(`ANY`)로 처리합니다.
+  2. **First-Match 룰 엔진 (`evaluate_acl`)**: `std::vector<AclRule>` 테이블을 상단부터 순차 탐색하여, 5-Tuple 조건이 모두 일치하는 최초의 규칙을 찾아 그 정책(`Action::ALLOW`/`Action::DENY`)을 반환합니다.
+  3. **Default-Deny 화이트리스트 가드**: 룰 테이블 순회 후 매칭되는 허용 룰이 없으면 기본적으로 `Action::DENY`를 반환하며, `ScreeningRouter` 인바운드 수신(`ext_sock`) 파이프라인 최상단에서 비인가 트래픽을 DNAT/포워딩 이전에 선제적으로 폐기(`continue`)하고 `[ACL DROP]` 실시간 보안 감사 로그를 기록합니다.
+* **목적**: 불필요한 포트 스캐닝, 비인가 프로토콜 침투(ICMP Flooding 등), 외부 미인가 대역의 DMZ 접근을 경계 방어선에서 물리적으로 원천 차단하여 백엔드 가용성(DoS 방어) 및 공격 표면(Attack Surface)을 최소화합니다.
+
 ---
 
 ## 4. 향후 보안 및 아키텍처 개선 과제 (Future Improvements)

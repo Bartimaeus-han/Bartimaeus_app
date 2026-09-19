@@ -324,24 +324,24 @@ int main() {
                 continue; // 비정상 runt packet 폐기
             // Runt Packet : 통신 규격이 정한 최소 크기보다 작아서 정상적으로 처리할 수 없는 pakcet
 
-            // screening router 자신이 송출한 packet의 loopback 방지
+            // 3. 소켓 자신 스스로가 송충한 패킷의 loopback을 방지한다.
             if (sll.sll_pkttype == PACKET_OUTGOING)
                 continue;
 
-            // L3 IPv4 header mapping
+            // 4. L3 IPv4 header mapping & IP 문자열 변환
             struct iphdr *ip_header = reinterpret_cast<struct iphdr *>(buffer);
             char src_ip[INET_ADDRSTRLEN];
             char dst_ip[INET_ADDRSTRLEN];
             inet_ntop(AF_INET, &(ip_header->saddr), src_ip, INET_ADDRSTRLEN);
             inet_ntop(AF_INET, &(ip_header->daddr), dst_ip, INET_ADDRSTRLEN);
 
-            // 라우터 자신이 보낸 반사 패킷 루프백 차단
+            // 5. Router 외부 IP 반사 패킷 차단
             struct in_addr router_ext_ip{};
             inet_pton(AF_INET, "10.10.0.2", &router_ext_ip);
             if (ip_header->saddr == router_ext_ip.s_addr)
                 continue;
 
-            // L4 포트 번호 추출
+            // 6. L4 전송 계층의 포트 번호 추출
             uint16_t client_src_port = 0;
             uint16_t client_dst_port = 0;
             if (ip_header->protocol == IPPROTO_TCP) {
@@ -356,26 +356,42 @@ int main() {
                 client_dst_port = ntohs(udp_hdr->dest);
             }
 
-            // Log
+            // 7. 수신 패킷인 5-Tuple 구성
+            FiveTuple incoming_pkt{
+                .protocol = ip_header->protocol,
+                .src_ip = ip_header->saddr,
+                .dst_ip = ip_header->daddr,
+                .src_port = client_src_port,
+                .dst_port = client_dst_port};
+
+            // 8. ACL 규칙 엔진 평가
+            AclMatchResult acl_res = evaluate_acl(acl_rules, incoming_pkt);
+            if (acl_res.action == Action::DENY) {
+                std::cout << get_timestamp() << " [ACL DROP] Rule: " << acl_res.rule_name << " | " << src_ip << ":" << client_src_port << " -> " << dst_ip << ":" << client_dst_port << " (Proto: " << static_cast<int>(ip_header->protocol) << ")" << std::endl;
+                // 비인가 패킷 폐기
+                continue;
+            }
+
+            // Main Log
             std::cout << get_timestamp() << " " << src_ip << " -> " << dst_ip << " (Proto: " << static_cast<int>(ip_header->protocol) << ", Size: " << data_size << " bytes)" << std::endl;
 
-            // 2-1. DNAT: dst ip를 ReverseProxy ip로 변경
+            // 9. DNAT
             struct in_addr target_ip{};
             inet_pton(AF_INET, "10.20.0.3", &target_ip);
             ip_header->daddr = target_ip.s_addr;
 
-            // 2-2. SNAT: src ip를 screening router DMZ ip로 변경
+            // 10. SNAT
             original_client_ip.s_addr = ip_header->saddr;
 
             struct in_addr router_dmz_if_ip{};
             inet_pton(AF_INET, "10.20.0.2", &router_dmz_if_ip);
             ip_header->saddr = router_dmz_if_ip.s_addr;
 
-            // 3. IP Checksum 재계산
+            // 11. IP Checksum 재계산
             ip_header->check = 0; // 과거 체크섬 값을 완전히 제거
             ip_header->check = calculate_checksum(ip_header, ip_header->ihl * 4);
 
-            // 3-1. L4 전송 계층 프로토콜별 NAPT 세션 등록 및 체크섬 재계산
+            // 12. L4 NAPT 세션 등록 및 전송 계층 체크섬 재계산
             if (ip_header->protocol == IPPROTO_TCP) {
                 struct tcphdr *tcp_header = reinterpret_cast<struct tcphdr *>(buffer + (ip_header->ihl * 4));
 

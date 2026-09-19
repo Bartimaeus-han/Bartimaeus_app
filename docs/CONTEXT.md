@@ -81,6 +81,7 @@
 | **`722ba1a`** | `ScreeningRouter/main.cpp`, `docker-compose.yml` | **Feat/Security (대칭형 양방향 포워딩 & TCP 체크섬)** | RFC 791 IP 체크섬 및 Pseudo 헤더 기반 TCP 체크섬 재계산, L3 DNAT(`10.20.0.3`) 및 Reverse NAT(`10.10.0.2`), 브로드캐스트(`0xFF`) 송출 파이프라인 구축 (2026-09-10) |
 | **`107f50d`** | `ScreeningRouter/main.cpp`, `docker-compose.yml` | **Fix/Security (3계층 네트워크 명칭 정합성 & 루프백 차단)** | 머지 시 어긋났던 `docker-compose.yml` 네트워크 선언부(`2_dmz_net`, `3_internal_net`) 정합성 수정 및 라우터 외부 IP(`10.10.0.2`) 반사 패킷 루프백 차단 가드 보강 (2026-09-11) |
 | **`WIP`** | `ScreeningRouter/main.cpp` | **Feat/Security (Full NAT & 다중 세션 테이블(NAPT) 및 정밀 로깅)** | 비대칭 라우팅 방지를 위해 인바운드 SNAT(`10.20.0.2`) 및 아웃바운드 Reverse DNAT 구현 완료. `std::unordered_map` 기반의 포트 매핑 다중 세션 테이블(`session_table`) 및 미등록 비인가 패킷 드롭 가드 구축 완료. Docker 런타임 환경에서 양방향 패킷 왕복 통신 실증 성공 및 밀리초(`HH:MM:SS.mmm`) 단위 실시간 정밀 타임스탬프 로깅 반영 완료 (2026-09-11) |
+| **`WIP`** | `ScreeningRouter/main.cpp`, [TODO.md](TODO.md), [ARCHITECTURE.md](ARCHITECTURE.md) | **Feat/Security (5-Tuple Stateless ACL 룰 엔진 구축 및 Default-Deny 실증)** | Parameter Object 패턴 기반 `FiveTuple`, `AclRule` 구조체 및 First-Match-Wins 기반 `evaluate_acl` 규칙 순회 엔진 완성. 인바운드 수신 파이프라인 최상단에 선제적 ACL 가드를 연동하여 `ALLOW_HTTP_8080` 허용 및 비인가 트래픽/ICMP의 `Default-Deny` 즉시 폐기(Drop)와 `[ACL DROP]` 실시간 보안 감사 로깅 실증 완료 (2026-09-19) |
 
 ---
 
