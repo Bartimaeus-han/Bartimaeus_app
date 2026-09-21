@@ -17,6 +17,8 @@
         - [x] (2026-09-08 망 구획 완료): `external_net`, `dmz_net`, `internal_net` 3계층 망 분리 및 `ScreeningRouter` 이중 홈(Dual-Homed) 게이트웨이 배치 완료. `ReverseProxy` 및 `app` 외부 포트 매핑을 제거하여 방화벽 우회 경로 차단 완료
         - [x] (2026-09-10 대칭형 양방향 포워딩 및 L3 DNAT/체크섬 파이프라인 구축 완료): 듀얼 소켓(`ext_sock`, `dmz_sock`) 및 `poll()` I/O 멀티플렉싱 기반으로 `eth0` ↔ `eth1` 대칭형 패킷 포워딩 파이프라인 완성. 양방향 런트/`PACKET_OUTGOING` 가드, L3 DNAT 및 Reverse NAT, RFC 791 헤더 체크섬 재계산, L2 브로드캐스트(`0xFF`) 송출 로직 구현 및 빌드 검증(0 errors) 완료
         - [x] (2026-09-11 Full NAT 및 다중 세션 테이블(NAPT) 구축 완료): SNAT(`saddr`을 라우터 DMZ IP `10.20.0.2`로 변환) 및 Reverse DNAT 구현으로 비대칭 라우팅 및 반환 경로 상실 문제 해결. `std::unordered_map` 기반의 포트 매핑 다중 세션 테이블(`session_table`) 및 미등록 패킷 드롭 가드 구축 완료. 밀리초 정밀 타임스탬프 로깅 반영 (빌드 0 errors)
+        - [x] (2026-09-21 커널 TCP RST 간섭 차단 완료): `AF_PACKET` 수신 시 L4 미바인딩으로 인한 리눅스 커널의 능동적 `TCP RST` 회신 결함을 해결하기 위해, `Dockerfile` 내 `iptables` 설치 및 `iptables -A INPUT -j DROP` 가드를 구축하여 커널 간섭을 완전히 침묵(`pkts: 4, bytes: 240 DROP` 실증 및 클라이언트 SYN 재전송 관측)시킴
+        - [/] (2026-09-21 진행 중): 외부 게이트웨이(`10.10.0.1`) MAC 기반 L2 유니캐스트 반환 경로 구축 및 브로드캐스트 탈피
     - [x] (2026-09-19 완료): ② 스크리닝 라우터(L3/L4 stateless 필터링) 구현: 5-Tuple 기반 Stateless ACL 룰 엔진(`FiveTuple`, `AclRule`, `evaluate_acl`) 및 `ALLOW_HTTP_8080`/`Default-Deny` 화이트리스트 필터링 파이프라인 구축 및 실증 완료
     - [ ] ③ Ochlos로 stateless 필터 우회 공격(SYN Flooding / 비정상 세션 주입) 실증
     - [ ] ④ 스테이트풀 인스펙션(Stateful Inspection)으로 해당 구멍 패치 (TCP 상태 테이블 관리)

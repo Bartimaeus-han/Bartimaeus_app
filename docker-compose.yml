@@ -41,7 +41,8 @@ services:
     container_name: bartimaeus-screening-router
     restart: unless-stopped
     ports:
-      - "8080:8080" # Sole entry point for external traffic
+      # 외부에서 8080으로 패킷이 들어오면 내부 ip(1_external_net):8080으로 전송한다.
+      - "8080:8080"
     networks:
       1_external_net:
         # External incoming interface (eth0)

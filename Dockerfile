@@ -34,6 +34,9 @@ CMD [ "./ReverseProxy" ]
 
 # Screening Router Runtime Stage
 FROM debian:bookworm-slim AS screening-router
+# 커널 패킷 통제를 위해서 iptables 설치
+RUN apt-get update && apt-get install -y iptables && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=builder /app/build/ScreeningRouter/ScreeningRouter .
-CMD [ "./ScreeningRouter" ]
+# Kernale의 모든 RST 응답 간접 차단 후 Router 실행하기
+CMD ["sh", "-c", "iptables -A INPUT -i lo -j ACCEPT && iptables -A INPUT -j DROP && ./ScreeningRouter"]
