@@ -172,6 +172,21 @@
   3. **Default-Deny 화이트리스트 가드**: 룰 테이블 순회 후 매칭되는 허용 룰이 없으면 기본적으로 `Action::DENY`를 반환하며, `ScreeningRouter` 인바운드 수신(`ext_sock`) 파이프라인 최상단에서 비인가 트래픽을 DNAT/포워딩 이전에 선제적으로 폐기(`continue`)하고 `[ACL DROP]` 실시간 보안 감사 로그를 기록합니다.
 * **목적**: 불필요한 포트 스캐닝, 비인가 프로토콜 침투(ICMP Flooding 등), 외부 미인가 대역의 DMZ 접근을 경계 방어선에서 물리적으로 원천 차단하여 백엔드 가용성(DoS 방어) 및 공격 표면(Attack Surface)을 최소화합니다.
 
+### 3.14 L2 브로드캐스트 탈피 및 Random LAA 환경 대응 동적 MAC 학습 (Dynamic MAC Learning)
+* **구현 방식**:
+  1. **정적 하드코딩의 한계 및 Random LAA 식별**: 최신 컨테이너/가상화 환경(Docker 포함)은 IEEE 사설 대역 규약에 따른 **Random LAA(Locally Administered Address, `02:xx:...`)**를 사용하여 MAC 주소를 무작위 동적 생성할 수 있습니다. 따라서 MAC을 특정 값으로 하드코딩(Static ARP)하면 컨테이너 재생성 시 통신이 단절되는 결함이 발생합니다.
+  2. **동적 MAC 학습(Dynamic MAC Learning) 채택**: `AF_PACKET` 원시 소켓이 커널 ARP 스택을 우회하는 환경에서, L2 스위치의 표준 5대 동작 메커니즘(Learning & Forwarding)을 그대로 채택했습니다:
+     - **미학습 패킷 송출 (Unknown Unicast Flooding)**: 목적지 MAC을 모르는 최초 1회 요청 시 브로드캐스트(`0xFF`)로 플러딩.
+     - **인바운드 MAC 학습 (Learning)**: 상대방(외부 게이트웨이 또는 리버스 프록시)이 패킷을 전송할 때 L2 헤더의 출발지 MAC(`sll.sll_addr`)을 캡처하여 메모리에 동적 캐싱.
+     - **유니캐스트 포워딩 (Forwarding)**: MAC 학습 완료 후부터는 모든 패킷을 해당 MAC 주소로 100% 1:1 유니캐스트 송출.
+  3. **[CRITICAL] 리눅스 커널의 L2 브로드캐스트 TCP 패킷 폐기 메커니즘**:
+     - 리눅스 커널 소스코드(`net/ipv4/tcp_ipv4.c`의 `tcp_v4_rcv`)는 `if (skb->pkt_type != PACKET_HOST) goto discard_it;` 검사를 수행합니다.
+     - 즉, L2 목적지 MAC이 수신자 인터페이스의 고유 MAC(`PACKET_HOST`)이 아닌 브로드캐스트(`PACKET_BROADCAST`)로 유입된 TCP 패킷은 커널 레벨에서 즉시 무조건 폐기(Discard)됩니다.
+     - 따라서 Random LAA 환경에서 사전 정적 고정이 불가능한 상태로 TCP 데이터 패킷을 브로드캐스트로 쏘면 백엔드가 응답하지 않아 세션 수립이 불가능해지며, MAC을 알아내기 위해서는 데이터 패킷이 아닌 **L2 ARP Request(0x0806)를 통한 선제적 질의(ARP Probing)**가 유일한 정석 해결책이 됩니다.
+* **보안 및 아키텍처 의의**:
+  - **Random LAA 및 클라우드 동적 인프라 호환성**: MAC 주소가 런타임에 동적으로 변경되더라도 소스코드 수정 없이 100% 자동 적응하여 유니캐스트 통신을 보장합니다.
+  - **L2 브로드캐스트 스톰 및 도청 방어**: 최초 1회를 제외한 모든 트래픽이 1:1 유니캐스트로 전달되므로, 동일 브릿지 세그먼트 내 비인가 컨테이너의 패킷 스니핑 공격면을 제거합니다.
+
 ---
 
 ## 4. 향후 보안 및 아키텍처 개선 과제 (Future Improvements)

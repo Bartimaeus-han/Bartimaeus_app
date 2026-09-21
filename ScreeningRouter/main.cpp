@@ -5,15 +5,17 @@
 #include <ctime>     // localtime_r
 #include <ifaddrs.h> // getifaddrs(), freeifaddrs()
 #include <iostream>
-#include <linux/if_packet.h> // sockaddr_ll struct
-#include <net/ethernet.h>    // ETH_P_IP protocol constant
-#include <net/if.h>          // if_nametoindex()
-#include <netinet/in.h>      // htons()
-#include <netinet/ip.h>      // struct iphdr
-#include <netinet/tcp.h>     // struct tcphdr
-#include <netinet/udp.h>     // struct udphdr
-#include <poll.h>            // poll(), struct pollfd
+#include <linux/if_packet.h>  // sockaddr_ll struct
+#include <net/ethernet.h>     // ETH_P_IP protocol constant
+#include <net/if.h>           // if_nametoindex()
+#include <netinet/if_ether.h> // struct ether_arp, ARPOP_REQUEST, ARPOP_REPLY
+#include <netinet/in.h>       // htons()
+#include <netinet/ip.h>       // struct iphdr
+#include <netinet/tcp.h>      // struct tcphdr
+#include <netinet/udp.h>      // struct udphdr
+#include <poll.h>             // poll(), struct pollfd
 #include <string>
+#include <sys/ioctl.h>   // ioctl(), SIOCGIFHWADDR (나 자신 MAC 주소 조회용)
 #include <sys/socket.h>  // socket(), AF_PACKET, SOCK_DGRAM
 #include <unistd.h>      // close() system call
 #include <unordered_map> //
@@ -302,6 +304,13 @@ int main() {
         .action = Action::ALLOW});
     //
 
+    // 동적 MAC 학습 캐시. docker 최신은 Random LAA 사용 -> 고정 MAC Address 불가
+    uint8_t proxy_mac[ETH_ALEN] = {0};
+    bool has_proxy_mac = false;
+    uint8_t gateway_mac[ETH_ALEN] = {0};
+    bool has_gateway_mac = false;
+
+    // Packet 수신, 중계 Event Loop
     while (true) {
         // kernel에 수신 event 대기 요청
         int ret = poll(fds, 2, -1);
@@ -310,38 +319,44 @@ int main() {
             break;
         }
 
-        //
+        // ====================================================================
+        // [fds[0]: 인바운드 파이프라인] eth0(외부망) ➔ eth1(DMZ) 포워딩
+        // ====================================================================
         if (fds[0].revents & POLLIN) {
             struct sockaddr_ll sll{};
             socklen_t sll_len = sizeof(sll);
 
-            // 1. 외부망으로부터 IPv4 패킷을 수신
+            // 1. 외부망으로부터 IPv4 패킷 수신 (Receive IPv4 packet from external net)
             ssize_t data_size = recvfrom(ext_sock, buffer, sizeof(buffer), 0, reinterpret_cast<struct sockaddr *>(&sll), &sll_len);
 
-            // IPv4 헤더의 물리적 최소 크기를 검증.
-            // 기형 패킷 차단 -> Buffer Over-read
+            // 1-1. IPv4 헤더 물리적 최소 크기 검증 (Discard runt packet)
             if (data_size < static_cast<ssize_t>(sizeof(struct iphdr)))
-                continue; // 비정상 runt packet 폐기
-            // Runt Packet : 통신 규격이 정한 최소 크기보다 작아서 정상적으로 처리할 수 없는 pakcet
+                continue;
 
-            // 3. 소켓 자신 스스로가 송충한 패킷의 loopback을 방지한다.
+            // 1-2. 자체 송출 패킷의 루프백 방지 (Prevent loopback of self-transmitted packets)
             if (sll.sll_pkttype == PACKET_OUTGOING)
                 continue;
 
-            // 4. L3 IPv4 header mapping & IP 문자열 변환
+            // 2. 외부 게이트웨이 MAC 동적 학습 (Dynamically learn external gateway MAC)
+            if (!has_gateway_mac) {
+                std::memcpy(gateway_mac, sll.sll_addr, ETH_ALEN);
+                has_gateway_mac = true;
+            }
+
+            // 3. L3 IPv4 헤더 매핑 및 IP 문자열 변환 (Map L3 IPv4 header)
             struct iphdr *ip_header = reinterpret_cast<struct iphdr *>(buffer);
             char src_ip[INET_ADDRSTRLEN];
             char dst_ip[INET_ADDRSTRLEN];
             inet_ntop(AF_INET, &(ip_header->saddr), src_ip, INET_ADDRSTRLEN);
             inet_ntop(AF_INET, &(ip_header->daddr), dst_ip, INET_ADDRSTRLEN);
 
-            // 5. Router 외부 IP 반사 패킷 차단
+            // 3-1. 라우터 외부 IP 반사 패킷 차단 (Prevent reflection of router external IP)
             struct in_addr router_ext_ip{};
             inet_pton(AF_INET, "10.10.0.2", &router_ext_ip);
             if (ip_header->saddr == router_ext_ip.s_addr)
                 continue;
 
-            // 6. L4 전송 계층의 포트 번호 추출
+            // 4. L4 전송 계층 포트 번호 추출 (Extract L4 transport layer ports)
             uint16_t client_src_port = 0;
             uint16_t client_dst_port = 0;
             if (ip_header->protocol == IPPROTO_TCP) {
@@ -356,7 +371,7 @@ int main() {
                 client_dst_port = ntohs(udp_hdr->dest);
             }
 
-            // 7. 수신 패킷인 5-Tuple 구성
+            // 5. 5-Tuple 구성 및 Stateless ACL 검사 (Construct 5-Tuple & Evaluate ACL)
             FiveTuple incoming_pkt{
                 .protocol = ip_header->protocol,
                 .src_ip = ip_header->saddr,
@@ -364,38 +379,36 @@ int main() {
                 .src_port = client_src_port,
                 .dst_port = client_dst_port};
 
-            // 8. ACL 규칙 엔진 평가
             AclMatchResult acl_res = evaluate_acl(acl_rules, incoming_pkt);
             if (acl_res.action == Action::DENY) {
                 std::cout << get_timestamp() << " [ACL DROP] Rule: " << acl_res.rule_name << " | " << src_ip << ":" << client_src_port << " -> " << dst_ip << ":" << client_dst_port << " (Proto: " << static_cast<int>(ip_header->protocol) << ")" << std::endl;
-                // 비인가 패킷 폐기
-                continue;
+                continue; // 비인가 패킷 폐기 (Discard unauthorized packet)
             }
 
-            // Main Log
+            // 실시간 인바운드 트래픽 감사 로그 (Real-time inbound audit log)
             std::cout << get_timestamp() << " " << src_ip << " -> " << dst_ip << " (Proto: " << static_cast<int>(ip_header->protocol) << ", Size: " << data_size << " bytes)" << std::endl;
 
-            // 9. DNAT
+            // 6. Full NAT: DNAT(목적지 변환) 및 SNAT(출발지 변환)
+            // 6-1. DNAT: 목적지를 ReverseProxy(10.20.0.3)로 변경 (DNAT to ReverseProxy)
             struct in_addr target_ip{};
             inet_pton(AF_INET, "10.20.0.3", &target_ip);
             ip_header->daddr = target_ip.s_addr;
 
-            // 10. SNAT
+            // 6-2. SNAT: 출발지를 라우터 DMZ IP(10.20.0.2)로 변경 (SNAT to router DMZ IP)
             original_client_ip.s_addr = ip_header->saddr;
 
             struct in_addr router_dmz_if_ip{};
             inet_pton(AF_INET, "10.20.0.2", &router_dmz_if_ip);
             ip_header->saddr = router_dmz_if_ip.s_addr;
 
-            // 11. IP Checksum 재계산
-            ip_header->check = 0; // 과거 체크섬 값을 완전히 제거
+            // 7. IP Checksum 재계산 (Recalculate IP Checksum)
+            ip_header->check = 0;
             ip_header->check = calculate_checksum(ip_header, ip_header->ihl * 4);
 
-            // 12. L4 NAPT 세션 등록 및 전송 계층 체크섬 재계산
+            // 8. L4 NAPT 세션 등록 및 L4 Checksum 재계산 (Register NAPT session & Recalculate L4 checksum)
             if (ip_header->protocol == IPPROTO_TCP) {
                 struct tcphdr *tcp_header = reinterpret_cast<struct tcphdr *>(buffer + (ip_header->ihl * 4));
 
-                // Client 출발지 포트 추출 및 세션 등록
                 uint16_t client_port = ntohs(tcp_header->source);
                 session_table[client_port] = NatSession{original_client_ip, client_port};
 
@@ -403,61 +416,74 @@ int main() {
             } else if (ip_header->protocol == IPPROTO_UDP) {
                 struct udphdr *udp_header = reinterpret_cast<struct udphdr *>(buffer + (ip_header->ihl * 4));
 
-                // Client 출발지 포트 추출 및 세션 등록
                 uint16_t client_port = ntohs(udp_header->source);
                 session_table[client_port] = NatSession{original_client_ip, client_port};
 
                 udp_header->check = calculate_udp_checksum(ip_header, udp_header);
             }
 
-            // 4. eth1로 packet 송출
+            // 9. eth1(DMZ)로 패킷 송출 (Transmit packet via eth1)
             struct sockaddr_ll out_sll{};
             out_sll.sll_family = AF_PACKET;
             out_sll.sll_protocol = htons(ETH_P_IP);
             out_sll.sll_ifindex = dmz_ifindex;
-            out_sll.sll_halen = ETH_ALEN; // MAC 주소 길이
-            for (int i = 0; i < ETH_ALEN; ++i) {
-                // L2 Broadcast 전송. 0xFF로 채우면 브릿지가 ReverseProxy에게 packet을 온전히 전송
-                out_sll.sll_addr[i] = 0xFF;
+            out_sll.sll_halen = ETH_ALEN;
+
+            // 미학습 상태면 플러딩(0xFF), 학습 완료 시 1:1 유니캐스트 (Flood if unknown, unicast if known)
+            if (has_proxy_mac) {
+                memcpy(out_sll.sll_addr, proxy_mac, ETH_ALEN);
+            } else {
+                memset(out_sll.sll_addr, 0xFF, ETH_ALEN);
             }
 
             sendto(dmz_sock, buffer, data_size, 0, reinterpret_cast<struct sockaddr *>(&out_sll), sizeof(out_sll));
         }
 
+        // ====================================================================
+        // [fds[1]: 아웃바운드 파이프라인] eth1(DMZ) ➔ eth0(외부망) 반환
+        // ====================================================================
         if (fds[1].revents & POLLIN) {
             struct sockaddr_ll sll{};
             socklen_t sll_len = sizeof(sll);
 
-            // eth1(DMZ)로부터 백엔드 응답 패킷 수신 (Receive backend response from eth1)
+            // 1. eth1(DMZ)로부터 백엔드 응답 패킷 수신 (Receive backend response from eth1)
             ssize_t data_size = recvfrom(dmz_sock, buffer, sizeof(buffer), 0, reinterpret_cast<struct sockaddr *>(&sll), &sll_len);
-            if (data_size < static_cast<ssize_t>(sizeof(struct iphdr)))
-                continue; // 런트 패킷 폐기 (Discard runt packet)
 
-            // dmz_sock 자신이 송출한 패킷 루프백 방지 (Prevent loopback of self-transmitted packets)
+            // 1-1. IPv4 헤더 물리적 최소 크기 검증 (Discard runt packet)
+            if (data_size < static_cast<ssize_t>(sizeof(struct iphdr)))
+                continue;
+
+            // 1-2. 자체 송출 패킷의 루프백 방지 (Prevent loopback of self-transmitted packets)
             if (sll.sll_pkttype == PACKET_OUTGOING)
                 continue;
 
-            // L3 IPv4 헤더 매핑 (Map L3 IPv4 header)
+            // 2. 리버스 프록시 MAC 동적 학습 (Dynamically learn ReverseProxy MAC)
+            if (!has_proxy_mac) {
+                memcpy(proxy_mac, sll.sll_addr, ETH_ALEN);
+                has_proxy_mac = true;
+            }
+
+            // 3. L3 IPv4 헤더 매핑 (Map L3 IPv4 header)
             struct iphdr *ip_header = reinterpret_cast<struct iphdr *>(buffer);
 
-            // ReverseProxy(10.20.0.3)가 보낸 응답이 아니면 Drop (Drop if response is not from ReverseProxy)
+            // 3-1. ReverseProxy(10.20.0.3) 송신자 검증 (Drop if response is not from ReverseProxy)
             struct in_addr expected_proxy_ip{};
             inet_pton(AF_INET, "10.20.0.3", &expected_proxy_ip);
             if (ip_header->saddr != expected_proxy_ip.s_addr)
                 continue;
 
-            // 2. Reverse NAT: 출발지 IP를 스크리닝 라우터의 외부 IP로 복원 (Restore src IP to Screening Router external IP)
+            // 6. Reverse NAT: 출발지 IP를 라우터 외부 IP로 복원 (Restore src IP to router external IP)
             struct in_addr router_ext_ip{};
             inet_pton(AF_INET, "10.10.0.2", &router_ext_ip);
             ip_header->saddr = router_ext_ip.s_addr;
 
-            // 2-1. L4 session table 조회 및 dst IP 복원
+            // 6-1. L4 세션 테이블 조회 및 목적지 IP 복원 (Lookup session table & restore dst IP)
             if (ip_header->protocol == IPPROTO_TCP) {
                 struct tcphdr *tcp_header = reinterpret_cast<struct tcphdr *>(buffer + (ip_header->ihl * 4));
                 uint16_t reply_port = ntohs(tcp_header->dest);
                 auto it = session_table.find(reply_port);
 
-                // 미등록 세션의 비인가 패킷은 Drop
+                // 미등록 세션 비인가 패킷 폐기 (Drop unauthorized packet of unregistered session)
                 if (it == session_table.end())
                     continue;
 
@@ -467,18 +493,18 @@ int main() {
                 uint16_t reply_port = ntohs(udp_header->dest);
                 auto it = session_table.find(reply_port);
 
-                // 미등록 세션의 비인가 패킷은 Drop
+                // 미등록 세션 비인가 패킷 폐기 (Drop unauthorized packet of unregistered session)
                 if (it == session_table.end())
                     continue;
 
                 ip_header->daddr = it->second.client_ip.s_addr;
             }
 
-            // 3. IP Checksum 재계산 (Recalculate IP Checksum)
+            // 7. IP Checksum 재계산 (Recalculate IP Checksum)
             ip_header->check = 0;
             ip_header->check = calculate_checksum(ip_header, ip_header->ihl * 4);
 
-            // 3-1. L4 Checksum 재계산 (Recalculate L4 TCP/UDP checksum)
+            // 8. L4 Checksum 재계산 (Recalculate L4 TCP/UDP checksum)
             if (ip_header->protocol == IPPROTO_TCP) {
                 struct tcphdr *tcp_header = reinterpret_cast<struct tcphdr *>(buffer + (ip_header->ihl * 4));
 
@@ -489,15 +515,15 @@ int main() {
                 udp_header->check = calculate_udp_checksum(ip_header, udp_header);
             }
 
-            // 4. eth0로 packet 송출 (Transmit packet via eth0)
+            // 9. eth0(외부망)로 패킷 송출 (Transmit packet via eth0)
             struct sockaddr_ll out_sll{};
             out_sll.sll_family = AF_PACKET;
             out_sll.sll_protocol = htons(ETH_P_IP);
             out_sll.sll_ifindex = ext_ifindex;
             out_sll.sll_halen = ETH_ALEN;
-            for (int i = 0; i < ETH_ALEN; ++i) {
-                out_sll.sll_addr[i] = 0xFF;
-            }
+
+            // 외부 게이트웨이로 1:1 유니캐스트 송출 (Unicast to external gateway)
+            std::memcpy(out_sll.sll_addr, gateway_mac, ETH_ALEN);
 
             sendto(ext_sock, buffer, data_size, 0, reinterpret_cast<struct sockaddr *>(&out_sll), sizeof(out_sll));
         }

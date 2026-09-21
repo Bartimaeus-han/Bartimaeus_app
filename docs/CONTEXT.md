@@ -83,6 +83,7 @@
 | **`WIP`** | `ScreeningRouter/main.cpp` | **Feat/Security (Full NAT & 다중 세션 테이블(NAPT) 및 정밀 로깅)** | 비대칭 라우팅 방지를 위해 인바운드 SNAT(`10.20.0.2`) 및 아웃바운드 Reverse DNAT 구현 완료. `std::unordered_map` 기반의 포트 매핑 다중 세션 테이블(`session_table`) 및 미등록 비인가 패킷 드롭 가드 구축 완료. Docker 런타임 환경에서 양방향 패킷 왕복 통신 실증 성공 및 밀리초(`HH:MM:SS.mmm`) 단위 실시간 정밀 타임스탬프 로깅 반영 완료 (2026-09-11) |
 | **`WIP`** | `ScreeningRouter/main.cpp`, [TODO.md](TODO.md), [ARCHITECTURE.md](ARCHITECTURE.md) | **Feat/Security (5-Tuple Stateless ACL 룰 엔진 구축 및 Default-Deny 실증)** | Parameter Object 패턴 기반 `FiveTuple`, `AclRule` 구조체 및 First-Match-Wins 기반 `evaluate_acl` 규칙 순회 엔진 완성. 인바운드 수신 파이프라인 최상단에 선제적 ACL 가드를 연동하여 `ALLOW_HTTP_8080` 허용 및 비인가 트래픽/ICMP의 `Default-Deny` 즉시 폐기(Drop)와 `[ACL DROP]` 실시간 보안 감사 로깅 실증 완료 (2026-09-19) |
 | **`WIP`** | `Dockerfile`, `ScreeningRouter/main.cpp`, [ARCHITECTURE.md](ARCHITECTURE.md), [GEMINI.md](GEMINI.md) | **Fix/Security (커널 TCP RST 간섭 차단 및 인프라 매트릭스 수립)** | `AF_PACKET` 디바이스 탭 모드 동작 시 L4 소켓 미바인딩으로 인한 리눅스 커널의 능동적 `TCP RST` 회신 결함을 식별하고, `Dockerfile` 내 `iptables` 도입 및 `iptables -A INPUT -j DROP` 가드를 통해 커널 간섭을 완벽 차단(`pkts: 4, bytes: 240 DROP` 실증 및 SYN 재전송 관측). Dev Container 및 호스트 환경 분리에 따른 명령어 실행 위치 매트릭스 및 가이드라인 정립 (2026-09-21) |
+| **`WIP`** | `ScreeningRouter/main.cpp`, [ARCHITECTURE.md](ARCHITECTURE.md) | **Refactor/Security (Random LAA 대응 동적 MAC 학습 및 L2 유니캐스트 전환)** | 정적 MAC 하드코딩의 한계(Random LAA 환경에서 컨테이너 재생성 시 통신 단절)를 식별하고, L2 스위치 표준 메커니즘(미학습 시 플러딩 ➔ 인바운드 출발지 MAC 동적 학습 ➔ 유니캐스트 포워딩)을 구축하여 브로드캐스트 스톰 방어 및 동적 인프라 호환성 확보 (2026-09-21) |
 
 ---
 
@@ -128,6 +129,10 @@
    * 현상: `std::unitbuf`의 동작을 설명하면서 "버퍼를 거치지 않고 쓰는 즉시", "0.001초 딜레이도 없이 실시간" 같은 비과학적이고 과장된 엉터리 표현을 남발하여 학습자에게 혼선을 초래함.
    * 원인: 유저 공간에서 커널 공간으로의 컨텍스트 스위칭, 시스템 콜 인터럽트, I/O 버스 전송 등 컴퓨터 아키텍처상 불가피한 지연(Latency)이 엄연히 존재함에도 마술 같은 수식어를 무비판적으로 사용함. 또한 `unitbuf`는 버퍼 자체가 제거되는 것이 아니라 각 `<<` 연산 완료 시점마다 유저 공간 `streambuf`를 비우며 커널 `write()` 시스템 콜을 강제 유발하는 구조임을 정밀하게 짚지 못함.
    * 해결책: 컴퓨터 시스템 및 커널 메커니즘을 설명할 때 '즉시', '알아서', '0초 딜레이' 등의 추상적·과장된 수식어를 영구 금지하고, 정확한 시스템 콜(`write()`), 버퍼 객체(`streambuf`), 컨텍스트 스위칭 및 레이턴시 관점에서 엄밀한 전문 용어만을 사용하도록 `GEMINI.md` 및 `CONTEXT.md`에 명시하고 반성함.
+10. **Dev Container 환경 내 Git 셸 명령어 실행 무한 대기(Hang) 이슈 (2026-09-21)**:
+    * 현상: 세션 시작 시 변경 사항 파악을 위해 `git log` 명령어를 실행했으나, Dev Container의 바인드 마운트 I/O 지연 및 백그라운드 태스크 제약으로 인해 응답 없이 무한 대기(Hang)에 빠져 세션 진행을 중단시킴.
+    * 원인: `TODO.md`와 `CONTEXT.md` 파일 조회(`view_file`)만으로도 변경 맥락을 충분히 파악할 수 있음에도, 습관적으로 `git log` 셸 명령어를 선제 실행함.
+    * 해결책: Dev Container 환경에서 모든 Git 관련 셸 명령어의 AI 직접 실행을 원천 금지하고, 프로젝트 상태 및 과거 이력 파악 시 반드시 `CONTEXT.md`와 `TODO.md` 파일 조회를 최우선으로 하도록 `GEMINI.md` 규정을 강화함.
 
 ### 3.2 현재 프로젝트 빌드 설정 값
 * **빌드 제너레이터**: `Ninja` (최종 타겟 실행 파일: `SecureWebServer.exe`)
