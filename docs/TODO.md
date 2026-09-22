@@ -17,11 +17,14 @@
         - [x] (2026-09-08 망 구획 완료): `external_net`, `dmz_net`, `internal_net` 3계층 망 분리 및 `ScreeningRouter` 이중 홈(Dual-Homed) 게이트웨이 배치 완료. `ReverseProxy` 및 `app` 외부 포트 매핑을 제거하여 방화벽 우회 경로 차단 완료
         - [x] (2026-09-10 대칭형 양방향 포워딩 및 L3 DNAT/체크섬 파이프라인 구축 완료): 듀얼 소켓(`ext_sock`, `dmz_sock`) 및 `poll()` I/O 멀티플렉싱 기반으로 `eth0` ↔ `eth1` 대칭형 패킷 포워딩 파이프라인 완성. 양방향 런트/`PACKET_OUTGOING` 가드, L3 DNAT 및 Reverse NAT, RFC 791 헤더 체크섬 재계산, L2 브로드캐스트(`0xFF`) 송출 로직 구현 및 빌드 검증(0 errors) 완료
         - [x] (2026-09-11 Full NAT 및 다중 세션 테이블(NAPT) 구축 완료): SNAT(`saddr`을 라우터 DMZ IP `10.20.0.2`로 변환) 및 Reverse DNAT 구현으로 비대칭 라우팅 및 반환 경로 상실 문제 해결. `std::unordered_map` 기반의 포트 매핑 다중 세션 테이블(`session_table`) 및 미등록 패킷 드롭 가드 구축 완료. 밀리초 정밀 타임스탬프 로깅 반영 (빌드 0 errors)
-        - [x] (2026-09-21 커널 TCP RST 간섭 차단 완료): `AF_PACKET` 수신 시 L4 미바인딩으로 인한 리눅스 커널의 능동적 `TCP RST` 회신 결함을 해결하기 위해, `Dockerfile` 내 `iptables` 설치 및 `iptables -A INPUT -j DROP` 가드를 구축하여 커널 간섭을 완전히 침묵(`pkts: 4, bytes: 240 DROP` 실증 및 클라이언트 SYN 재전송 관측)시킴
-        - [/] (2026-09-21 진행 중): 외부 게이트웨이(`10.10.0.1`) MAC 기반 L2 유니캐스트 반환 경로 구축 및 브로드캐스트 탈피
+        - [x] (2026-09-22 동적 MAC 학습 및 ARP Probing 완료): 리눅스 커널의 브로드캐스트 TCP 폐기(`tcp_v4_rcv`) 회피를 위해 외부 게이트웨이 동적 학습 및 서버 기동 시 L2 ARP Request(`resolve_arp_mac`) 선제 질의 파이프라인 구축 완료 (빌드 0 errors)
+        - [ ] (L3/L4 라우팅 파이프라인 식별된 잠재적 결함 및 후속 과제):
+            - [x] (2026-09-22 해결 완료) [부팅 레이스] 컨테이너 동시 기동 시 1회성 ARP 질의 실패 레이스 컨디션 방어 완료 (최대 3회 재시도 루프 구축)
+            - [ ] [세션 충돌] 포트 보존형 NAT(Port-Preserving)의 세션 충돌 결함 (동일 클라이언트 포트 동시 인입 시 세션 덮어쓰기 방어를 위한 변환 포트 풀 검토)
+            - [ ] [상태 고갈 DoS] 세션 테이블(`session_table`) 영구 누적 메모리 고갈 취약점 (TCP FIN/RST 미추적으로 인한 힙 팽창 ➔ 아래 ③ 공격 실증 및 ④ 스테이트풀 인스펙션의 핵심 타깃으로 연계)
     - [x] (2026-09-19 완료): ② 스크리닝 라우터(L3/L4 stateless 필터링) 구현: 5-Tuple 기반 Stateless ACL 룰 엔진(`FiveTuple`, `AclRule`, `evaluate_acl`) 및 `ALLOW_HTTP_8080`/`Default-Deny` 화이트리스트 필터링 파이프라인 구축 및 실증 완료
-    - [ ] ③ Ochlos로 stateless 필터 우회 공격(SYN Flooding / 비정상 세션 주입) 실증
-    - [ ] ④ 스테이트풀 인스펙션(Stateful Inspection)으로 해당 구멍 패치 (TCP 상태 테이블 관리)
+    - [ ] ③ Ochlos로 stateless 필터 우회 및 세션 테이블 고갈 공격(SYN Flooding / 비정상 세션 주입) 실증
+    - [ ] ④ 스테이트풀 인스펙션(Stateful Inspection)으로 해당 구멍 패치 (TCP 4-Way Handshake 상태 추적 및 세션 타이머 만료 회수)
     - [ ] ⑤ 리버스 프록시(L7 애플리케이션 게이트웨이) 구현 (HTTP 파싱, 경로별 빈도 제한)
     - [x] 방어 로직 배치 기준 확정(2026-08-12): "요청 횟수만 보면 되는가(빈도 기반) vs 처리 결과까지 알아야 하는가(성공/실패 등 결과 기반)"로 판단 — 빈도 기반(회원가입 스팸, 게시글 스팸 등)은 ④ 리버스 프록시가 전체 기능에 공통으로 커버하고, 결과 기반(로그인 성공/실패처럼)은 앱 레벨 전용 로직만 남김(리버스 프록시가 응답 코드까지 파싱해 결과 기반 판단을 대신할 수는 있으나, 비즈니스 정책이 인프라 설정으로 새어나가는 트레이드오프가 있어 채택하지 않음). 이 기준으로 점검한 결과 `handleSignUp`([auth_controller.hpp:34](../src/controllers/auth_controller.hpp#L34))에는 현재 어떤 반복 요청 제한도 없음을 확인 — 이 갭은 별도 앱 코드 없이 ④ 완성 시 자동으로 해소될 예정
     - [x] (착수 시 참고) 이 프로젝트(Bartimaeus) 전체가 애초에 KISA "2026 주요정보통신기반시설 기술적 취약점 분석·평가 방법 상세가이드"를 공부하다가 시작됐다는 사실도 이때 확인됨 — 방화벽 전용 사실이 아니라 프로젝트 전체의 출발점이므로 참고용으로만 남김. 같은 가이드의 Chapter 04 "보안 장비"(353~386p)를 [Security_Equipment_Guide.md](Security_Equipment_Guide.md)로 추출해둠(계정/접근/패치/로그/기능관리 5분류, S-01~S-23 총 23개 공식 점검항목)

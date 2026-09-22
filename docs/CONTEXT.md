@@ -84,6 +84,7 @@
 | **`WIP`** | `ScreeningRouter/main.cpp`, [TODO.md](TODO.md), [ARCHITECTURE.md](ARCHITECTURE.md) | **Feat/Security (5-Tuple Stateless ACL 룰 엔진 구축 및 Default-Deny 실증)** | Parameter Object 패턴 기반 `FiveTuple`, `AclRule` 구조체 및 First-Match-Wins 기반 `evaluate_acl` 규칙 순회 엔진 완성. 인바운드 수신 파이프라인 최상단에 선제적 ACL 가드를 연동하여 `ALLOW_HTTP_8080` 허용 및 비인가 트래픽/ICMP의 `Default-Deny` 즉시 폐기(Drop)와 `[ACL DROP]` 실시간 보안 감사 로깅 실증 완료 (2026-09-19) |
 | **`WIP`** | `Dockerfile`, `ScreeningRouter/main.cpp`, [ARCHITECTURE.md](ARCHITECTURE.md), [GEMINI.md](GEMINI.md) | **Fix/Security (커널 TCP RST 간섭 차단 및 인프라 매트릭스 수립)** | `AF_PACKET` 디바이스 탭 모드 동작 시 L4 소켓 미바인딩으로 인한 리눅스 커널의 능동적 `TCP RST` 회신 결함을 식별하고, `Dockerfile` 내 `iptables` 도입 및 `iptables -A INPUT -j DROP` 가드를 통해 커널 간섭을 완벽 차단(`pkts: 4, bytes: 240 DROP` 실증 및 SYN 재전송 관측). Dev Container 및 호스트 환경 분리에 따른 명령어 실행 위치 매트릭스 및 가이드라인 정립 (2026-09-21) |
 | **`WIP`** | `ScreeningRouter/main.cpp`, [ARCHITECTURE.md](ARCHITECTURE.md) | **Refactor/Security (Random LAA 대응 동적 MAC 학습 및 L2 유니캐스트 전환)** | 정적 MAC 하드코딩의 한계(Random LAA 환경에서 컨테이너 재생성 시 통신 단절)를 식별하고, L2 스위치 표준 메커니즘(미학습 시 플러딩 ➔ 인바운드 출발지 MAC 동적 학습 ➔ 유니캐스트 포워딩)을 구축하여 브로드캐스트 스톰 방어 및 동적 인프라 호환성 확보 (2026-09-21) |
+| **`WIP`** | `ScreeningRouter/main.cpp`, [TODO.md](TODO.md) | **Feat/Security (ARP Probing 선제 질의 엔진 구축 및 3대 잠재 결함 식별)** | 리눅스 커널의 브로드캐스트 TCP 폐기(`tcp_v4_rcv`) 우회를 위해 서버 기동 시 L2 ARP Request(`resolve_arp_mac`)로 ReverseProxy MAC을 선제 질의/캐싱하는 파이프라인 완성. 부팅 레이스 컨디션, 포트 보존형 NAT 충돌, 세션 테이블 영구 누적 DoS의 3대 잠재 결함을 식별하여 차기 공격 실증(Ochlos) 및 Stateful Inspection 과제로 등록 (2026-09-22) |
 
 ---
 
