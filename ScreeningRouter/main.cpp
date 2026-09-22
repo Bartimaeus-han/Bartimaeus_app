@@ -5,6 +5,7 @@
 #include <ctime>     // localtime_r
 #include <ifaddrs.h> // getifaddrs(), freeifaddrs()
 #include <iostream>
+#include <linux/if_ether.h>
 #include <linux/if_packet.h>  // sockaddr_ll struct
 #include <net/ethernet.h>     // ETH_P_IP protocol constant
 #include <net/if.h>           // if_nametoindex()
@@ -27,7 +28,7 @@ std::string get_timestamp() {
     time_t t = std::chrono::system_clock::to_time_t(now);
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
 
-    struct tm tm_info{};
+    struct tm tm_info {};
     localtime_r(&t, &tm_info);
 
     char buf[32];
@@ -181,90 +182,130 @@ uint16_t calculate_udp_checksum(struct iphdr *ip_header, struct udphdr *udp_head
     return (checksum == 0) ? 0xFFFF : checksum;
 }
 
+// Interface 이름으로 자신의 MAC 주소 조회
+bool get_interface_mac(const std::string &interface_name, uint8_t *mac) {
+    // 커널과 대화하기 위해 잠시 여는 **임시 더미 소켓**
+    int sock = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sock < 0)
+        return false;
+
+    // 커널에 제출할 인터페이스에 요청 양식 구조체
+    struct ifreq interface_request {};
+    strncpy(interface_request.ifr_name, interface_name.c_str(), IFNAMSIZ - 1);
+
+    // 커널에게 인터페이스 정보에 대하여 질의
+    if (ioctl(sock, SIOCGIFHWADDR, &interface_request) < 0) {
+        close(sock);
+        return false;
+    }
+
+    memcpy(mac, interface_request.ifr_hwaddr.sa_data, ETH_ALEN);
+    close(sock);
+    return true;
+}
+
 int main() {
     std::cout << std::unitbuf;
 
     // 1. eth0 전용 Raw socket 생성
-    int ext_sock = socket(AF_PACKET, SOCK_DGRAM, htons(ETH_P_IP));
-    if (ext_sock < 0) {
+    int external_socket = socket(AF_PACKET, SOCK_DGRAM, htons(ETH_P_IP));
+    if (external_socket < 0) {
         std::cerr << "[!] Failed to create ext_sock (Root privilege required)" << std::endl;
         return 1;
     }
     // 2. eth1 전용 Raw socket 생성 (Create raw socket for eth1)
-    int dmz_sock = socket(AF_PACKET, SOCK_DGRAM, htons(ETH_P_IP));
-    if (dmz_sock < 0) {
+    int dmz_socket = socket(AF_PACKET, SOCK_DGRAM, htons(ETH_P_IP));
+    if (dmz_socket < 0) {
         std::cerr << "[!] Failed to create dmz_sock (Root privilege required)" << std::endl;
-        close(ext_sock);
+        close(external_socket);
         return 1;
     }
 
-    std::cout << "[+] Sockets created successfully (ext_sock: " << ext_sock << ", dmz_sock: " << dmz_sock << ")" << std::endl;
-
+    std::cout << "[+] Sockets created successfully (ext_sock: " << external_socket << ", dmz_sock: " << dmz_socket << ")" << std::endl;
+    // ===================================
     // 3. Network Interface IP 기반 동적 탐색 (Docker 인터페이스 역전 방지)
+    // ===================================
     struct ifaddrs *ifaddr = nullptr;
-    unsigned int ext_ifindex = 0;
+    unsigned int external_interface_index = 0;
     unsigned int dmz_ifindex = 0;
-    std::string ext_ifname = "unknown", dmz_ifname = "unknown";
+    std::string external_interface_name = "unknown", dmz_interface_name = "unknown";
 
+    // 각 랜카드에 할당된 IP를 검사 -> 외부망과 DMZ 탐색
+    // 스크리닝 라우터에는 외부(도커 게이트웨이)와 연결된 인터페이스
+    // 그리고 내부(DMZ, 리버스 프록시)와 연결된 인터페이스
+    // 위 2개의 랜카드가 존재한다.
+    // 앞서서 인터페이스를 고정하려고 했으나, 도커 환경의 한계로 인해 이렇게 동적으로 구성함
     if (getifaddrs(&ifaddr) != -1) {
-        for (struct ifaddrs *ifa = ifaddr; ifa != nullptr; ifa = ifa->ifa_next) {
-            if (!ifa->ifa_addr || ifa->ifa_addr->sa_family != AF_INET)
+        for (struct ifaddrs *current_interface = ifaddr; current_interface != nullptr; current_interface = current_interface->ifa_next) {
+            if (!current_interface->ifa_addr || current_interface->ifa_addr->sa_family != AF_INET)
                 continue;
 
-            struct sockaddr_in *sa = reinterpret_cast<struct sockaddr_in *>(ifa->ifa_addr);
+            struct sockaddr_in *sa = reinterpret_cast<struct sockaddr_in *>(current_interface->ifa_addr);
             char ip[INET_ADDRSTRLEN];
             inet_ntop(AF_INET, &(sa->sin_addr), ip, sizeof(ip));
 
             if (std::string(ip) == "10.10.0.2") {
-                ext_ifindex = if_nametoindex(ifa->ifa_name);
-                ext_ifname = ifa->ifa_name;
+                external_interface_index = if_nametoindex(current_interface->ifa_name);
+                external_interface_name = current_interface->ifa_name;
             } else if (std::string(ip) == "10.20.0.2") {
-                dmz_ifindex = if_nametoindex(ifa->ifa_name);
-                dmz_ifname = ifa->ifa_name;
+                dmz_ifindex = if_nametoindex(current_interface->ifa_name);
+                dmz_interface_name = current_interface->ifa_name;
             }
         }
         freeifaddrs(ifaddr);
     }
 
     // fallback: 탐색 실패 시 기본 인터페이스 시도
-    if (ext_ifindex == 0) {
-        ext_ifindex = if_nametoindex("eth1");
-        ext_ifname = "eth1(fallback)";
+    if (external_interface_index == 0) {
+        external_interface_index = if_nametoindex("eth1");
+        external_interface_name = "eth1(fallback)";
     }
     if (dmz_ifindex == 0) {
         dmz_ifindex = if_nametoindex("eth0");
-        dmz_ifname = "eth0(fallback)";
+        dmz_interface_name = "eth0(fallback)";
     }
 
-    if (ext_ifindex == 0 || dmz_ifindex == 0) {
+    if (external_interface_index == 0 || dmz_ifindex == 0) {
         std::cerr << "[!] Failed to find network interfaces (External or DMZ not found)" << std::endl;
-        close(ext_sock);
-        close(dmz_sock);
+        close(external_socket);
+        close(dmz_socket);
         return 1;
     }
 
-    std::cout << "[+] Interface identified - External: " << ext_ifname << " (" << ext_ifindex << "), DMZ: " << dmz_ifname << " (" << dmz_ifindex << ")" << std::endl;
+    std::cout << "[+] Interface identified - External: " << external_interface_name << " (" << external_interface_index << "), DMZ: " << dmz_interface_name << " (" << dmz_ifindex << ")" << std::endl;
 
+    // 3-1. 스크리닝 라우터에 연결된 두 개의 인터페이스(외부/DMZ)의 MAC 주소 조회
+    uint8_t router_external_mac_address[ETH_ALEN] = {0};
+    uint8_t router_dmz_mac_address[ETH_ALEN] = {0};
+    if (!get_interface_mac(external_interface_name, router_external_mac_address) || !get_interface_mac(dmz_interface_name, router_dmz_mac_address)) {
+        std::cerr << "[!] Failed to get router MAC addresses" << std::endl;
+        close(external_socket);
+        close(dmz_socket);
+        return 1;
+    }
+
+    // ===================================
     // 4. 각 socket을 해당하는 network interface에 bind
-    struct sockaddr_ll ext_sll{};
+    // ===================================
+    struct sockaddr_ll ext_sll {};
     ext_sll.sll_family = AF_PACKET;
     ext_sll.sll_protocol = htons(ETH_P_IP);
-    ext_sll.sll_ifindex = ext_ifindex;
-    if (bind(ext_sock, reinterpret_cast<struct sockaddr *>(&ext_sll), sizeof(ext_sll)) < 0) {
+    ext_sll.sll_ifindex = external_interface_index;
+    if (bind(external_socket, reinterpret_cast<struct sockaddr *>(&ext_sll), sizeof(ext_sll)) < 0) {
         std::cerr << "[!] Failed to bind ext_sock to eth0" << std::endl;
-        close(ext_sock);
-        close(dmz_sock);
+        close(external_socket);
+        close(dmz_socket);
         return 1;
     }
 
-    struct sockaddr_ll dmz_sll{};
+    struct sockaddr_ll dmz_sll {};
     dmz_sll.sll_family = AF_PACKET;
     dmz_sll.sll_protocol = htons(ETH_P_IP);
     dmz_sll.sll_ifindex = dmz_ifindex;
-    if (bind(dmz_sock, reinterpret_cast<struct sockaddr *>(&dmz_sll), sizeof(dmz_sll)) < 0) {
+    if (bind(dmz_socket, reinterpret_cast<struct sockaddr *>(&dmz_sll), sizeof(dmz_sll)) < 0) {
         std::cerr << "[!] Failed to bind dmz_sock to eth1" << std::endl;
-        close(ext_sock);
-        close(dmz_sock);
+        close(external_socket);
+        close(dmz_socket);
         return 1;
     }
 
@@ -272,17 +313,17 @@ int main() {
 
     // 5. I/O multiplexing을 위한 pollfd 구조체 배열 구성
     struct pollfd fds[2];
-    fds[0].fd = ext_sock;
+    fds[0].fd = external_socket;
     fds[0].events = POLLIN; // eth0 수신 대기
 
-    fds[1].fd = dmz_sock;
+    fds[1].fd = dmz_socket;
     fds[1].events = POLLIN; // eth1 수신 대기
 
     std::cout << "[*] Screening Router packet forwarding loop started..." << std::endl;
 
     char buffer[2048]; // packet 수신용
 
-    struct in_addr original_client_ip{}; // 원본 Client IP 백업용
+    struct in_addr original_client_ip {}; // 원본 Client IP 백업용
 
     // NPAT를 위한 세션 저장 테이블
     std::unordered_map<uint16_t, NatSession> session_table;
@@ -323,11 +364,11 @@ int main() {
         // [fds[0]: 인바운드 파이프라인] eth0(외부망) ➔ eth1(DMZ) 포워딩
         // ====================================================================
         if (fds[0].revents & POLLIN) {
-            struct sockaddr_ll sll{};
+            struct sockaddr_ll sll {};
             socklen_t sll_len = sizeof(sll);
 
             // 1. 외부망으로부터 IPv4 패킷 수신 (Receive IPv4 packet from external net)
-            ssize_t data_size = recvfrom(ext_sock, buffer, sizeof(buffer), 0, reinterpret_cast<struct sockaddr *>(&sll), &sll_len);
+            ssize_t data_size = recvfrom(external_socket, buffer, sizeof(buffer), 0, reinterpret_cast<struct sockaddr *>(&sll), &sll_len);
 
             // 1-1. IPv4 헤더 물리적 최소 크기 검증 (Discard runt packet)
             if (data_size < static_cast<ssize_t>(sizeof(struct iphdr)))
@@ -351,7 +392,7 @@ int main() {
             inet_ntop(AF_INET, &(ip_header->daddr), dst_ip, INET_ADDRSTRLEN);
 
             // 3-1. 라우터 외부 IP 반사 패킷 차단 (Prevent reflection of router external IP)
-            struct in_addr router_ext_ip{};
+            struct in_addr router_ext_ip {};
             inet_pton(AF_INET, "10.10.0.2", &router_ext_ip);
             if (ip_header->saddr == router_ext_ip.s_addr)
                 continue;
@@ -390,14 +431,14 @@ int main() {
 
             // 6. Full NAT: DNAT(목적지 변환) 및 SNAT(출발지 변환)
             // 6-1. DNAT: 목적지를 ReverseProxy(10.20.0.3)로 변경 (DNAT to ReverseProxy)
-            struct in_addr target_ip{};
+            struct in_addr target_ip {};
             inet_pton(AF_INET, "10.20.0.3", &target_ip);
             ip_header->daddr = target_ip.s_addr;
 
             // 6-2. SNAT: 출발지를 라우터 DMZ IP(10.20.0.2)로 변경 (SNAT to router DMZ IP)
             original_client_ip.s_addr = ip_header->saddr;
 
-            struct in_addr router_dmz_if_ip{};
+            struct in_addr router_dmz_if_ip {};
             inet_pton(AF_INET, "10.20.0.2", &router_dmz_if_ip);
             ip_header->saddr = router_dmz_if_ip.s_addr;
 
@@ -423,7 +464,7 @@ int main() {
             }
 
             // 9. eth1(DMZ)로 패킷 송출 (Transmit packet via eth1)
-            struct sockaddr_ll out_sll{};
+            struct sockaddr_ll out_sll {};
             out_sll.sll_family = AF_PACKET;
             out_sll.sll_protocol = htons(ETH_P_IP);
             out_sll.sll_ifindex = dmz_ifindex;
@@ -436,18 +477,18 @@ int main() {
                 memset(out_sll.sll_addr, 0xFF, ETH_ALEN);
             }
 
-            sendto(dmz_sock, buffer, data_size, 0, reinterpret_cast<struct sockaddr *>(&out_sll), sizeof(out_sll));
+            sendto(dmz_socket, buffer, data_size, 0, reinterpret_cast<struct sockaddr *>(&out_sll), sizeof(out_sll));
         }
 
         // ====================================================================
         // [fds[1]: 아웃바운드 파이프라인] eth1(DMZ) ➔ eth0(외부망) 반환
         // ====================================================================
         if (fds[1].revents & POLLIN) {
-            struct sockaddr_ll sll{};
+            struct sockaddr_ll sll {};
             socklen_t sll_len = sizeof(sll);
 
             // 1. eth1(DMZ)로부터 백엔드 응답 패킷 수신 (Receive backend response from eth1)
-            ssize_t data_size = recvfrom(dmz_sock, buffer, sizeof(buffer), 0, reinterpret_cast<struct sockaddr *>(&sll), &sll_len);
+            ssize_t data_size = recvfrom(dmz_socket, buffer, sizeof(buffer), 0, reinterpret_cast<struct sockaddr *>(&sll), &sll_len);
 
             // 1-1. IPv4 헤더 물리적 최소 크기 검증 (Discard runt packet)
             if (data_size < static_cast<ssize_t>(sizeof(struct iphdr)))
@@ -467,13 +508,13 @@ int main() {
             struct iphdr *ip_header = reinterpret_cast<struct iphdr *>(buffer);
 
             // 3-1. ReverseProxy(10.20.0.3) 송신자 검증 (Drop if response is not from ReverseProxy)
-            struct in_addr expected_proxy_ip{};
+            struct in_addr expected_proxy_ip {};
             inet_pton(AF_INET, "10.20.0.3", &expected_proxy_ip);
             if (ip_header->saddr != expected_proxy_ip.s_addr)
                 continue;
 
             // 6. Reverse NAT: 출발지 IP를 라우터 외부 IP로 복원 (Restore src IP to router external IP)
-            struct in_addr router_ext_ip{};
+            struct in_addr router_ext_ip {};
             inet_pton(AF_INET, "10.10.0.2", &router_ext_ip);
             ip_header->saddr = router_ext_ip.s_addr;
 
@@ -516,21 +557,21 @@ int main() {
             }
 
             // 9. eth0(외부망)로 패킷 송출 (Transmit packet via eth0)
-            struct sockaddr_ll out_sll{};
+            struct sockaddr_ll out_sll {};
             out_sll.sll_family = AF_PACKET;
             out_sll.sll_protocol = htons(ETH_P_IP);
-            out_sll.sll_ifindex = ext_ifindex;
+            out_sll.sll_ifindex = external_interface_index;
             out_sll.sll_halen = ETH_ALEN;
 
             // 외부 게이트웨이로 1:1 유니캐스트 송출 (Unicast to external gateway)
             std::memcpy(out_sll.sll_addr, gateway_mac, ETH_ALEN);
 
-            sendto(ext_sock, buffer, data_size, 0, reinterpret_cast<struct sockaddr *>(&out_sll), sizeof(out_sll));
+            sendto(external_socket, buffer, data_size, 0, reinterpret_cast<struct sockaddr *>(&out_sll), sizeof(out_sll));
         }
     }
 
-    close(ext_sock);
-    close(dmz_sock);
+    close(external_socket);
+    close(dmz_socket);
 
     return 0;
 }
